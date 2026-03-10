@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reports - AWS Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Inter', Arial, sans-serif; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            font-size: 32px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+        .back-link {
+            display: inline-block;
+            color: #667eea;
+            text-decoration: none;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+        .back-link:hover { text-decoration: underline; }
+        .reports-list {
+            margin-top: 30px;
+        }
+        .report-item {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .report-info h3 {
+            color: #333;
+            font-size: 16px;
+            margin-bottom: 5px;
+        }
+        .report-info p {
+            color: #666;
+            font-size: 14px;
+        }
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            margin-left: 10px;
+        }
+        .btn:hover { opacity: 0.9; }
+        .download-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        .download-options {
+            display: none;
+            position: absolute;
+            bottom: 100%;
+            right: 0;
+            margin-bottom: 5px;
+            background: white;
+            min-width: 120px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            border-radius: 8px;
+            overflow: hidden;
+            z-index: 100;
+        }
+        .download-dropdown:hover .download-options {
+            display: block;
+        }
+        .download-option {
+            display: block;
+            padding: 10px 15px;
+            color: #667eea;
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+        .download-option:hover {
+            background: #f0f0f0;
+        }
+        .empty {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+        #viewModal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            overflow: auto;
+        }
+        .modal-content {
+            background: white;
+            margin: 50px auto;
+            max-width: 1200px;
+            border-radius: 15px;
+            padding: 30px;
+            position: relative;
+        }
+        .close-btn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        .csv-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+            margin-top: 20px;
+        }
+        .csv-table th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 10px;
+            text-align: left;
+            position: sticky;
+            top: 0;
+        }
+        .csv-table td {
+            padding: 8px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .csv-table tr:hover {
+            background: #f8f9fa;
+        }
+        .table-container {
+            max-height: 600px;
+            overflow: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="back-link">← Back to Dashboard</a>
+        <h1>📊 Generated Reports</h1>
+        <div class="reports-list" id="reportsList">
+            <div class="empty">Loading reports...</div>
+        </div>
+    </div>
+
+    <div id="viewModal">
+        <div class="modal-content">
+            <button class="close-btn" onclick="closeModal()">✕ Close</button>
+            <h2 id="modalTitle" style="color: #667eea; margin-bottom: 20px;"></h2>
+            <div class="table-container" id="modalContent"></div>
+        </div>
+    </div>
+
+    <script>
+        async function loadReports() {
+            const response = await fetch('/api/list-reports');
+            const data = await response.json();
+            const list = document.getElementById('reportsList');
+            
+            if (data.reports.length === 0) {
+                list.innerHTML = '<div class="empty">No reports generated yet. Fetch logs to generate reports.</div>';
+                return;
+            }
+            
+            list.innerHTML = data.reports.map(report => `
+                <div class="report-item">
+                    <div class="report-info">
+                        <h3>${report.name}</h3>
+                        <p>Size: ${report.size} | Modified: ${report.modified}</p>
+                    </div>
+                    <div>
+                        <a href="#" onclick="viewReport('${report.name}'); return false;" class="btn">👁️ View</a>
+                        <div class="download-dropdown">
+                            <a href="#" class="btn">💾 Download</a>
+                            <div class="download-options">
+                                <a href="/api/download-file/${report.name}" class="download-option">📄 CSV</a>
+                                <a href="#" onclick="downloadPDF('${report.name}'); return false;" class="download-option">📄 PDF</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        async function viewReport(filename) {
+            const response = await fetch(`/api/view-file/${filename}`);
+            const data = await response.json();
+            
+            document.getElementById('modalTitle').textContent = filename;
+            
+            if (data.rows && data.rows.length > 0) {
+                const headers = data.rows[0];
+                const rows = data.rows.slice(1);
+                
+                let html = '<table class="csv-table"><thead><tr>';
+                headers.forEach(h => html += `<th>${h}</th>`);
+                html += '</tr></thead><tbody>';
+                
+                rows.forEach(row => {
+                    html += '<tr>';
+                    row.forEach(cell => html += `<td>${cell}</td>`);
+                    html += '</tr>';
+                });
+                
+                html += '</tbody></table>';
+                document.getElementById('modalContent').innerHTML = html;
+            } else {
+                document.getElementById('modalContent').innerHTML = '<p>No data available</p>';
+            }
+            
+            document.getElementById('viewModal').style.display = 'block';
+        }
+        
+        function closeModal() {
+            document.getElementById('viewModal').style.display = 'none';
+        }
+        
+        function downloadPDF(filename) {
+            window.location.href = '/api/download-pdf';
+        }
+        
+        loadReports();
+    </script>
+</body>
+</html>

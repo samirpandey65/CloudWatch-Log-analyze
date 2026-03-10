@@ -1,0 +1,17 @@
+{
+  "admin": {
+    "password": "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",
+    "role": "admin",
+    "email": "admin@example.com"
+  },
+  "user": {
+    "password": "e606e38b0d8c19b24cf0ee3808183162ea7cd63ff7912dbb22b5e803286b4446",
+    "role": "user",
+    "email": "user@example.com"
+  },
+  "samir": {
+    "password": "3c5f6daf0e3a10f320334913ff9ae48e9b769f11a5330bd8cb86a9abb94f78a0",
+    "email": "samirpandey65@gmail.com",
+    "role": "admin"
+  }
+}

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fetch Logs - AWS Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Inter', Arial, sans-serif; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        .back-link {
+            display: inline-block;
+            color: white;
+            text-decoration: none;
+            margin-bottom: 20px;
+            font-weight: 600;
+            background: rgba(255,255,255,0.2);
+            padding: 10px 20px;
+            border-radius: 10px;
+        }
+        .back-link:hover { background: rgba(255,255,255,0.3); }
+        h1 {
+            color: white;
+            font-size: 32px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .options {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .option-card {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            transition: transform 0.3s;
+            cursor: pointer;
+        }
+        .option-card:hover {
+            transform: translateY(-5px);
+        }
+        .option-card h2 {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+        .option-card h3 {
+            color: #667eea;
+            font-size: 24px;
+            margin-bottom: 15px;
+        }
+        .option-card p {
+            color: #666;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="back-link">← Back to Dashboard</a>
+        <h1>📥 Fetch Logs</h1>
+        <div class="options">
+            <div class="option-card" onclick="window.location.href='/fetch'">
+                <h2>☁️</h2>
+                <h3>CloudWatch Logs</h3>
+                <p>Fetch logs from AWS CloudWatch Log Groups. Monitor application logs, Lambda functions, and more.</p>
+            </div>
+            <div class="option-card" onclick="window.location.href='/fetch-s3'">
+                <h2>📦</h2>
+                <h3>S3 Logs</h3>
+                <p>Download logs from S3 buckets. Access ALB logs, CloudFront logs, and archived log files.</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

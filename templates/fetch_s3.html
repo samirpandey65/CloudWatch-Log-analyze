@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fetch S3 Logs - AWS Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Inter', Arial, sans-serif; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            font-size: 32px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 25px;
+        }
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+        }
+        input, select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 14px;
+            transition: border 0.3s;
+        }
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .radio-group {
+            display: flex;
+            gap: 20px;
+            margin-top: 10px;
+        }
+        .radio-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 20px;
+            transition: transform 0.3s;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .back-link {
+            display: inline-block;
+            color: #667eea;
+            text-decoration: none;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+        .back-link:hover {
+            text-decoration: underline;
+        }
+        #status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            display: none;
+        }
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.3s;
+        }
+        .progress-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .time-range-fields {
+            display: none;
+        }
+        .time-range-fields.active {
+            display: block;
+        }
+        .help-text {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="back-link">← Back to Dashboard</a>
+        <h1>📦 Fetch S3 Logs</h1>
+        <p class="subtitle">Download and analyze JSON log files from S3 bucket</p>
+
+        <form id="fetchForm">
+            <div class="form-group">
+                <label>S3 Bucket Name or S3 URL</label>
+                <input type="text" id="bucketName" placeholder="waf-loadbalancer-logs or s3://bucket/prefix" required>
+                <div class="help-text">Enter bucket name or full S3 URL (s3://bucket/prefix/path)</div>
+            </div>
+
+            <div class="form-group">
+                <label>Prefix / Folder Path (Optional)</label>
+                <input type="text" id="prefix" placeholder="logs/2024/01/">
+                <div class="help-text">Leave empty if using S3 URL or to search entire bucket</div>
+            </div>
+
+            <div class="form-group">
+                <label>Time Range</label>
+                <div class="radio-group">
+                    <div class="radio-option">
+                        <input type="radio" id="hours" name="timeRange" value="hours" checked>
+                        <label for="hours" style="margin: 0;">Last N Hours</label>
+                    </div>
+                    <div class="radio-option">
+                        <input type="radio" id="dateRange" name="timeRange" value="dateRange">
+                        <label for="dateRange" style="margin: 0;">Specific Date Range</label>
+                    </div>
+                </div>
+            </div>
+
+            <div id="hoursField" class="form-group time-range-fields active">
+                <label>Hours to Fetch</label>
+                <input type="number" id="hoursValue" value="24" min="1" max="168">
+            </div>
+
+            <div id="dateRangeFields" class="form-group time-range-fields">
+                <label>Start Date & Time</label>
+                <input type="datetime-local" id="startDate">
+                <label style="margin-top: 15px;">End Date & Time</label>
+                <input type="datetime-local" id="endDate">
+            </div>
+
+            <div class="form-group">
+                <label>AWS Region</label>
+                <select id="region">
+                    <option value="us-east-1">US East (N. Virginia)</option>
+                    <option value="us-east-2">US East (Ohio)</option>
+                    <option value="us-west-1">US West (N. California)</option>
+                    <option value="us-west-2" selected>US West (Oregon)</option>
+                    <option value="eu-west-1">EU (Ireland)</option>
+                    <option value="eu-west-2">EU (London)</option>
+                    <option value="eu-central-1">EU (Frankfurt)</option>
+                    <option value="ap-south-1">Asia Pacific (Mumbai)</option>
+                    <option value="ap-southeast-1">Asia Pacific (Singapore)</option>
+                    <option value="ap-southeast-2">Asia Pacific (Sydney)</option>
+                    <option value="ap-northeast-1">Asia Pacific (Tokyo)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Parallel Workers (Speed)</label>
+                <input type="number" id="maxWorkers" value="20" min="5" max="200">
+                <div class="help-text">Higher = Faster (Recommended: 20-50)</div>
+            </div>
+
+            <button type="submit" class="btn" id="submitBtn">🚀 Fetch & Analyze S3 Logs</button>
+        </form>
+
+        <div id="status"></div>
+    </div>
+
+    <script>
+        const form = document.getElementById('fetchForm');
+        const statusDiv = document.getElementById('status');
+        const submitBtn = document.getElementById('submitBtn');
+
+        // Toggle time range fields
+        document.querySelectorAll('input[name="timeRange"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                document.getElementById('hoursField').classList.remove('active');
+                document.getElementById('dateRangeFields').classList.remove('active');
+                
+                if (e.target.value === 'hours') {
+                    document.getElementById('hoursField').classList.add('active');
+                } else {
+                    document.getElementById('dateRangeFields').classList.add('active');
+                }
+            });
+        });
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const bucketName = document.getElementById('bucketName').value.trim();
+            const prefix = document.getElementById('prefix').value.trim();
+            const timeRange = document.querySelector('input[name="timeRange"]:checked').value;
+            const region = document.getElementById('region').value;
+            const maxWorkers = parseInt(document.getElementById('maxWorkers').value);
+            
+            let timeData = {};
+            if (timeRange === 'hours') {
+                timeData.hours = parseInt(document.getElementById('hoursValue').value);
+            } else {
+                timeData.start_date = document.getElementById('startDate').value;
+                timeData.end_date = document.getElementById('endDate').value;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = '⏳ Starting...';
+            statusDiv.style.display = 'block';
+            statusDiv.className = 'status-info';
+            statusDiv.innerHTML = `
+                <div id="progressMsg">Initializing S3 fetch...</div>
+                <div class="progress-bar"><div class="progress-fill" id="progressBar"></div></div>
+                <div class="progress-info">
+                    <span id="progressPercent">0%</span>
+                    <span id="progressTime">Elapsed: 0s</span>
+                </div>
+            `;
+
+            const startTime = Date.now();
+
+            // Start fetch
+            fetch('/api/fetch-s3-logs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    bucket_name: bucketName,
+                    prefix: prefix,
+                    time_range: timeRange,
+                    time_data: timeData,
+                    region: region,
+                    max_workers: maxWorkers
+                })
+            });
+
+            // Listen to progress
+            const eventSource = new EventSource('/api/fetch-progress');
+            
+            eventSource.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                const progressMsg = document.getElementById('progressMsg');
+                const progressBar = document.getElementById('progressBar');
+                const progressPercent = document.getElementById('progressPercent');
+                const progressTime = document.getElementById('progressTime');
+                
+                const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                progressTime.textContent = `Elapsed: ${elapsed}s`;
+                
+                if (data.status === 'progress') {
+                    progressMsg.textContent = data.message;
+                    const percent = (data.current / data.total) * 100;
+                    progressBar.style.width = percent + '%';
+                    progressPercent.textContent = `File ${data.current}/${data.total} (${Math.round(percent)}%)`;
+                } else if (data.status === 'info') {
+                    progressMsg.textContent = data.message;
+                } else if (data.status === 'analyzing') {
+                    progressMsg.textContent = data.message;
+                    progressBar.style.width = '100%';
+                    progressPercent.textContent = '100%';
+                } else if (data.status === 'completed') {
+                    eventSource.close();
+                    const totalTime = Math.floor((Date.now() - startTime) / 1000);
+                    statusDiv.className = 'status-success';
+                    statusDiv.innerHTML = `
+                        <strong>✓ Success!</strong><br>
+                        Fetched ${data.total_logs} log entries<br>
+                        Found ${data.total_attacks} attacks<br>
+                        Completed in ${totalTime}s<br>
+                        <a href="/" style="color: #155724; font-weight: 600;">View Dashboard →</a>
+                    `;
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = '🚀 Fetch & Analyze S3 Logs';
+                } else if (data.status === 'error') {
+                    eventSource.close();
+                    statusDiv.className = 'status-error';
+                    statusDiv.textContent = '✗ Error: ' + data.message;
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = '🚀 Fetch & Analyze S3 Logs';
+                }
+            };
+
+            eventSource.onerror = () => {
+                eventSource.close();
+                statusDiv.className = 'status-error';
+                statusDiv.textContent = '✗ Connection error';
+                submitBtn.disabled = false;
+                submitBtn.textContent = '🚀 Fetch & Analyze S3 Logs';
+            };
+        });
+    </script>
+</body>
+</html>

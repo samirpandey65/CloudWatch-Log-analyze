@@ -1,0 +1,1 @@
+{"monitors": [{"log_group": "/httpd/ssl_access_log", "region": "us-west-2", "check_interval": 60}, {"log_group": "/httpd/access_log", "region": "us-west-2", "check_interval": 60}, {"log_group": "/nginx/access_log", "region": "us-west-2", "check_interval": 60}, {"log_group": "RDSOSMetrics", "region": "us-west-2", "check_interval": 60}]}

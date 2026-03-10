@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Monitoring - CloudWatch Log Analyzer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Inter', Arial, sans-serif; 
+            background: #f5f7fa;
+            min-height: 100vh;
+            display: flex;
+        }
+        .sidebar {
+            width: 250px;
+            background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px 20px;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+        }
+        .sidebar h1 {
+            font-size: 24px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .sidebar-btn {
+            display: block;
+            width: 100%;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: none;
+            padding: 12px 15px;
+            border-radius: 10px;
+            cursor: pointer;
+            margin-bottom: 10px;
+            font-weight: 600;
+            font-size: 14px;
+            text-align: left;
+            transition: all 0.3s;
+            text-decoration: none;
+        }
+        .sidebar-btn:hover {
+            background: rgba(255,255,255,0.3);
+            transform: translateX(5px);
+        }
+        .main-content {
+            margin-left: 250px;
+            flex: 1;
+            padding: 30px;
+        }
+        .header { 
+            background: white;
+            padding: 25px 30px;
+            border-radius: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            margin-bottom: 30px;
+        }
+        .header h1 { 
+            font-size: 28px;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .section {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            margin-bottom: 25px;
+        }
+        .section h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(102,126,234,0.4);
+        }
+        .btn-danger {
+            background: linear-gradient(135deg, #f56565 0%, #c53030 100%);
+        }
+        .monitor-card {
+            background: linear-gradient(135deg, rgba(102,126,234,0.1) 0%, rgba(118,75,162,0.1) 100%);
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .monitor-info h3 {
+            color: #667eea;
+            font-size: 16px;
+            margin-bottom: 8px;
+        }
+        .monitor-info p {
+            color: #666;
+            font-size: 13px;
+            margin: 3px 0;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .status-running {
+            background: #48bb78;
+            color: white;
+        }
+        .status-stopped {
+            background: #cbd5e0;
+            color: #4a5568;
+        }
+        .alert-item {
+            background: #fff5f5;
+            border-left: 4px solid #f56565;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+        .alert-item h4 {
+            color: #c53030;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+        .alert-item p {
+            color: #666;
+            font-size: 12px;
+            margin: 3px 0;
+        }
+        .alert-time {
+            color: #999;
+            font-size: 11px;
+            font-style: italic;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <h1>🛡️ Dashboard</h1>
+        <a href="/" class="sidebar-btn">📊 Dashboard</a>
+        <a href="/fetch" class="sidebar-btn">📥 Fetch CloudWatch Logs</a>
+        <a href="/fetch-s3" class="sidebar-btn">📦 Fetch S3 Logs</a>
+        <a href="/live-monitor" class="sidebar-btn">🔴 Live Monitoring</a>
+    </div>
+
+    <div class="main-content">
+        <div class="header">
+            <h1>🔴 Live Monitoring</h1>
+            <p style="color: #666; font-size: 14px;">Monitor CloudWatch log groups in real-time for security threats</p>
+        </div>
+
+        <div class="section">
+            <h2>➕ Add New Monitor</h2>
+            <form id="addMonitorForm" onsubmit="addMonitor(event)">
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label>CloudWatch Log Group Name *</label>
+                        <input type="text" id="logGroup" required placeholder="/aws/lambda/my-function">
+                    </div>
+                    <div class="form-group">
+                        <label>AWS Region</label>
+                        <select id="region">
+                            <option value="us-east-1">us-east-1</option>
+                            <option value="us-east-2">us-east-2</option>
+                            <option value="us-west-1">us-west-1</option>
+                            <option value="us-west-2" selected>us-west-2</option>
+                            <option value="eu-west-1">eu-west-1</option>
+                            <option value="eu-central-1">eu-central-1</option>
+                            <option value="ap-south-1">ap-south-1</option>
+                            <option value="ap-southeast-1">ap-southeast-1</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Check Interval (seconds)</label>
+                    <input type="number" id="checkInterval" value="60" min="30" max="3600">
+                </div>
+                <button type="submit" class="btn">🚀 Start Monitoring</button>
+            </form>
+        </div>
+
+        <div class="section">
+            <h2>⚙️ Email Notifications</h2>
+            <div id="emailConfigDisplay" style="display:none; background: #f0f0f0; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <p style="margin: 5px 0;"><strong>Status:</strong> <span id="emailStatus" style="color: #48bb78;">✓ Enabled</span></p>
+                        <p style="margin: 5px 0;"><strong>SMTP:</strong> <span id="displaySmtp"></span>:<span id="displayPort"></span></p>
+                        <p style="margin: 5px 0;"><strong>From:</strong> <span id="displayFrom"></span></p>
+                        <p style="margin: 5px 0;"><strong>To:</strong> <span id="displayTo"></span></p>
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button class="btn" onclick="editEmailConfig()" style="background: #0e639c;">✏️ Edit</button>
+                        <button class="btn" onclick="deleteEmailConfig()" style="background: #d32f2f;">🗑️ Delete</button>
+                    </div>
+                </div>
+            </div>
+            <form id="emailConfigForm" onsubmit="saveEmailConfig(event)" style="display:none;">
+                <div class="form-group checkbox-group">
+                    <input type="checkbox" id="emailEnabled">
+                    <label for="emailEnabled" style="margin: 0;">Enable Email Notifications</label>
+                </div>
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label>SMTP Server</label>
+                        <select id="smtpServer" onchange="updateSmtpPort()">
+                            <option value="smtp.gmail.com">Gmail (smtp.gmail.com)</option>
+                            <option value="smtp.office365.com">Office 365 (smtp.office365.com)</option>
+                            <option value="smtp.live.com">Outlook/Hotmail (smtp.live.com)</option>
+                            <option value="smtp.mail.yahoo.com">Yahoo (smtp.mail.yahoo.com)</option>
+                            <option value="custom">Custom SMTP Server</option>
+                        </select>
+                        <input type="text" id="customSmtp" placeholder="Enter custom SMTP server" style="margin-top: 5px; display: none;">
+                    </div>
+                    <div class="form-group">
+                        <label>SMTP Port</label>
+                        <input type="number" id="smtpPort" value="587">
+                    </div>
+                </div>
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label>From Email</label>
+                        <input type="email" id="fromEmail" placeholder="your-email@gmail.com">
+                    </div>
+                    <div class="form-group">
+                        <label>Password / App Password</label>
+                        <input type="password" id="emailPassword" placeholder="your-app-password">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>To Emails (comma separated)</label>
+                    <input type="text" id="toEmails" placeholder="recipient1@example.com, recipient2@example.com">
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button type="submit" class="btn">💾 Save Configuration</button>
+                    <button type="button" class="btn" onclick="testEmail()" style="background: #f57c00;">📧 Send Test Email</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="margin: 0;">📡 Active Monitors</h2>
+                <button class="btn" onclick="refreshStatus()">🔄 Refresh</button>
+            </div>
+            <div id="monitorsList"></div>
+        </div>
+
+        <div class="section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="margin: 0;">🚨 Recent Alerts</h2>
+                <button class="btn" onclick="checkNow()">🔍 Check Now</button>
+            </div>
+            <div id="alertsList"></div>
+        </div>
+    </div>
+
+    <script>
+        async function addMonitor(e) {
+            e.preventDefault();
+            
+            const data = {
+                log_group: document.getElementById('logGroup').value,
+                region: document.getElementById('region').value,
+                check_interval: parseInt(document.getElementById('checkInterval').value)
+            };
+            
+            const response = await fetch('/api/monitor/add', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+            
+            const result = await response.json();
+            if (result.success) {
+                alert('Monitor added successfully!');
+                document.getElementById('addMonitorForm').reset();
+                refreshStatus();
+            } else {
+                alert('Monitor already exists or failed to add');
+            }
+        }
+
+        async function removeMonitor(logGroup) {
+            if (!confirm(`Stop monitoring ${logGroup}?`)) return;
+            
+            const response = await fetch('/api/monitor/remove', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({log_group: logGroup})
+            });
+            
+            const result = await response.json();
+            if (result.success) {
+                alert('Monitor removed successfully!');
+                refreshStatus();
+            }
+        }
+
+        async function refreshStatus() {
+            const response = await fetch('/api/monitor/status');
+            const monitors = await response.json();
+            
+            const container = document.getElementById('monitorsList');
+            
+            if (monitors.length === 0) {
+                container.innerHTML = '<div class="empty-state">No active monitors. Add one above to get started.</div>';
+                return;
+            }
+            
+            container.innerHTML = monitors.map(m => `
+                <div class="monitor-card">
+                    <div class="monitor-info">
+                        <h3>${m.log_group}</h3>
+                        <p><strong>Region:</strong> ${m.region} | <strong>Interval:</strong> ${m.check_interval}s</p>
+                        <p><strong>Last Check:</strong> ${m.last_check ? new Date(m.last_check).toLocaleString() : 'Not yet'}</p>
+                        <p><strong>Total Alerts:</strong> ${m.total_alerts}</p>
+                    </div>
+                    <div>
+                        <span class="status-badge ${m.running ? 'status-running' : 'status-stopped'}">
+                            ${m.running ? '🟢 Running' : '🔴 Stopped'}
+                        </span>
+                        <button class="btn btn-danger" style="margin-top: 10px;" onclick="removeMonitor('${m.log_group}')">
+                            🗑️ Remove
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function loadAlerts() {
+            const response = await fetch('/api/monitor/alerts?limit=50');
+            const alerts = await response.json();
+            
+            const container = document.getElementById('alertsList');
+            
+            if (alerts.length === 0) {
+                container.innerHTML = '<div class="empty-state">No alerts yet. Monitors will check for threats automatically.</div>';
+                return;
+            }
+            
+            // Group alerts by IP and attack type
+            const grouped = {};
+            alerts.forEach(a => {
+                const key = `${a.ip}_${a.attack_type}_${a.log_group}`;
+                if (!grouped[key]) {
+                    grouped[key] = {...a, count: 1, paths: [a.path]};
+                } else {
+                    grouped[key].count++;
+                    if (!grouped[key].paths.includes(a.path)) {
+                        grouped[key].paths.push(a.path);
+                    }
+                }
+            });
+            
+            container.innerHTML = Object.values(grouped).map(a => {
+                const truncPath = a.path.length > 100 ? a.path.substring(0, 100) + '...' : a.path;
+                return `
+                <div class="alert-item" style="cursor: pointer;" onclick="toggleDetails(this)">
+                    <h4>🚨 ${a.attack_type}</h4>
+                    <p><strong>IP:</strong> ${a.ip} | <strong>Log Group:</strong> ${a.log_group}</p>
+                    <p><strong>Path:</strong> ${truncPath}</p>
+                    <p><strong>Total Occurrences:</strong> ${a.count}</p>
+                    <p class="alert-time">${new Date(a.timestamp).toLocaleString()}</p>
+                    <div class="alert-details" style="display: none; margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd;">
+                        <p><strong>Stream:</strong> ${a.stream}</p>
+                        <p><strong>Method:</strong> ${a.method} | <strong>Status:</strong> ${a.status}</p>
+                        <p><strong>Full Path:</strong> <code style="word-break: break-all; background: #f5f5f5; padding: 5px; display: block; margin-top: 5px;">${a.path}</code></p>
+                        ${a.count > 1 ? `<p><strong>Unique Paths:</strong> ${a.paths.length}</p>` : ''}
+                    </div>
+                </div>
+            `}).join('');
+        }
+        
+        function toggleDetails(element) {
+            const details = element.querySelector('.alert-details');
+            details.style.display = details.style.display === 'none' ? 'block' : 'none';
+        }
+
+        async function checkNow() {
+            const btn = event.target;
+            btn.textContent = '⏳ Checking...';
+            btn.disabled = true;
+            
+            const response = await fetch('/api/monitor/check', {method: 'POST'});
+            const result = await response.json();
+            
+            btn.textContent = '🔍 Check Now';
+            btn.disabled = false;
+            
+            if (result.new_alerts > 0) {
+                alert(`Found ${result.new_alerts} new threats!`);
+            } else {
+                alert('No new threats detected');
+            }
+            
+            loadAlerts();
+        }
+
+        async function loadEmailConfig() {
+            const response = await fetch('/api/email-config');
+            const config = await response.json();
+            
+            const display = document.getElementById('emailConfigDisplay');
+            const form = document.getElementById('emailConfigForm');
+            
+            if (config.enabled && config.from_email) {
+                // Show display, hide form
+                display.style.display = 'block';
+                form.style.display = 'none';
+                
+                document.getElementById('emailStatus').textContent = config.enabled ? '✓ Enabled' : '✗ Disabled';
+                document.getElementById('emailStatus').style.color = config.enabled ? '#48bb78' : '#999';
+                document.getElementById('displaySmtp').textContent = config.smtp_server || 'Not set';
+                document.getElementById('displayPort').textContent = config.smtp_port || '587';
+                document.getElementById('displayFrom').textContent = config.from_email || 'Not set';
+                document.getElementById('displayTo').textContent = (config.to_emails || []).join(', ') || 'Not set';
+            } else {
+                // Show form, hide display
+                display.style.display = 'none';
+                form.style.display = 'block';
+            }
+            
+            // Load form values
+            document.getElementById('emailEnabled').checked = config.enabled || false;
+            
+            const smtpServer = config.smtp_server || 'smtp.gmail.com';
+            const smtpSelect = document.getElementById('smtpServer');
+            const customSmtp = document.getElementById('customSmtp');
+            
+            const knownServers = ['smtp.gmail.com', 'smtp.office365.com', 'smtp.live.com', 'smtp.mail.yahoo.com'];
+            if (knownServers.includes(smtpServer)) {
+                smtpSelect.value = smtpServer;
+            } else {
+                smtpSelect.value = 'custom';
+                customSmtp.style.display = 'block';
+                customSmtp.value = smtpServer;
+            }
+            
+            document.getElementById('smtpPort').value = config.smtp_port || 587;
+            document.getElementById('fromEmail').value = config.from_email || '';
+            document.getElementById('emailPassword').value = '';
+            document.getElementById('toEmails').value = (config.to_emails || []).join(', ');
+        }
+
+        function editEmailConfig() {
+            document.getElementById('emailConfigDisplay').style.display = 'none';
+            document.getElementById('emailConfigForm').style.display = 'block';
+        }
+
+        async function deleteEmailConfig() {
+            if (!confirm('Delete email configuration? You will stop receiving email alerts.')) return;
+            
+            const config = {
+                enabled: false,
+                smtp_server: '',
+                smtp_port: 587,
+                from_email: '',
+                password: '',
+                to_emails: []
+            };
+            
+            const response = await fetch('/api/email-config', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(config)
+            });
+            
+            const result = await response.json();
+            if (result.success) {
+                alert('Email configuration deleted!');
+                loadEmailConfig();
+            }
+        }
+
+        function updateSmtpPort() {
+            const smtpSelect = document.getElementById('smtpServer');
+            const customSmtp = document.getElementById('customSmtp');
+            const portInput = document.getElementById('smtpPort');
+            
+            if (smtpSelect.value === 'custom') {
+                customSmtp.style.display = 'block';
+            } else {
+                customSmtp.style.display = 'none';
+                // Set default port based on provider
+                if (smtpSelect.value === 'smtp.gmail.com') {
+                    portInput.value = 587;
+                } else if (smtpSelect.value === 'smtp.office365.com') {
+                    portInput.value = 587;
+                } else if (smtpSelect.value === 'smtp.live.com') {
+                    portInput.value = 587;
+                } else if (smtpSelect.value === 'smtp.mail.yahoo.com') {
+                    portInput.value = 587;
+                }
+            }
+        }
+
+        async function saveEmailConfig(e) {
+            e.preventDefault();
+            
+            const password = document.getElementById('emailPassword').value;
+            const smtpSelect = document.getElementById('smtpServer');
+            const customSmtp = document.getElementById('customSmtp');
+            
+            let smtpServer;
+            if (smtpSelect.value === 'custom') {
+                smtpServer = customSmtp.value.trim();
+                if (!smtpServer) {
+                    alert('Please enter a custom SMTP server');
+                    return;
+                }
+            } else {
+                smtpServer = smtpSelect.value;
+            }
+            
+            const config = {
+                enabled: document.getElementById('emailEnabled').checked,
+                smtp_server: smtpServer,
+                smtp_port: parseInt(document.getElementById('smtpPort').value),
+                from_email: document.getElementById('fromEmail').value,
+                password: password || undefined,
+                to_emails: document.getElementById('toEmails').value.split(',').map(e => e.trim()).filter(e => e)
+            };
+            
+            const response = await fetch('/api/email-config', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(config)
+            });
+            
+            const result = await response.json();
+            if (result.success) {
+                alert('Email configuration saved!');
+                loadEmailConfig();
+            }
+        }
+
+        async function testEmail() {
+            const btn = event.target;
+            const originalText = btn.textContent;
+            btn.textContent = '⏳ Sending...';
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch('/api/test-email', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'}
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('✅ Test email sent successfully! Check your inbox.');
+                } else {
+                    alert('❌ Failed to send test email: ' + result.error);
+                }
+            } catch (error) {
+                alert('❌ Error: ' + error.message);
+            } finally {
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        window.onload = () => {
+            refreshStatus();
+            loadAlerts();
+            loadEmailConfig();
+            
+            // Auto-refresh every 30 seconds
+            setInterval(() => {
+                refreshStatus();
+                loadAlerts();
+            }, 30000);
+        };
+    </script>
+</body>
+</html>

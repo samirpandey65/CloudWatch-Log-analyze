@@ -1,0 +1,1389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AWS Log Attack Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Inter', Arial, sans-serif; 
+            background: #f5f7fa;
+            min-height: 100vh;
+            display: flex;
+        }
+        .sidebar {
+            width: 250px;
+            background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px 20px;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            position: fixed;
+            height: 100vh;
+            overflow: visible;
+            z-index: 100;
+        }
+        .sidebar h1 {
+            font-size: 24px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .user-info {
+            background: rgba(255,255,255,0.15);
+            padding: 12px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-size: 13px;
+        }
+        .user-info .username {
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        .user-info .role {
+            font-size: 11px;
+            opacity: 0.9;
+        }
+        .sidebar-btn {
+            display: block;
+            width: 100%;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: none;
+            padding: 12px 15px;
+            border-radius: 10px;
+            cursor: pointer;
+            margin-bottom: 10px;
+            font-weight: 600;
+            font-size: 14px;
+            text-align: left;
+            transition: all 0.3s;
+            text-decoration: none;
+        }
+        .sidebar-btn:hover {
+            background: rgba(255,255,255,0.3);
+            transform: translateX(5px);
+        }
+        .dropdown {
+            position: relative;
+            z-index: 200;
+        }
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            left: 100%;
+            top: 0;
+            margin-left: 10px;
+            background: white;
+            min-width: 250px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+            border-radius: 10px;
+            z-index: 1001;
+            overflow: hidden;
+        }
+        .dropdown:hover .dropdown-content {
+            display: block;
+        }
+        .dropdown-item {
+            color: #667eea;
+            padding: 12px 15px;
+            text-decoration: none;
+            display: block;
+            font-weight: 600;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+        .dropdown-item:hover {
+            background: #f0f0f0;
+        }
+        .main-content {
+            margin-left: 250px;
+            flex: 1;
+            padding: 30px;
+        }
+        .header { 
+            background: white;
+            padding: 25px 30px;
+            border-radius: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            margin-bottom: 30px;
+        }
+        .header h1 { 
+            font-size: 28px;
+            color: #333;
+            margin-bottom: 15px;
+        }
+        .stats { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); 
+            gap: 20px; 
+            margin-bottom: 30px;
+        }
+        .stat-card { 
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            transition: transform 0.3s;
+        }
+        .stat-card:hover { transform: translateY(-3px); box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .stat-card h3 { 
+            color: #666; 
+            font-size: 14px; 
+            font-weight: 500;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .stat-card .number { 
+            font-size: 42px; 
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .container { 
+            /* No padding needed, handled by main-content */
+        }
+        .toggle-section { 
+            background: white;
+            margin-bottom: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            overflow: hidden;
+        }
+        .toggle-header { 
+            padding: 20px 25px;
+            cursor: pointer;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 600;
+            font-size: 16px;
+        }
+        .toggle-header:hover { opacity: 0.9; }
+        .toggle-content { 
+            padding: 25px;
+            display: none;
+            animation: slideDown 0.3s ease;
+        }
+        .toggle-content.active { display: block; }
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .arrow { 
+            transition: transform 0.3s;
+            font-size: 20px;
+        }
+        .arrow.active { transform: rotate(180deg); }
+        table { 
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+        thead tr { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        th { 
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        th:first-child { border-radius: 10px 0 0 0; }
+        th:last-child { border-radius: 0 10px 0 0; }
+        td { 
+            padding: 15px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        tbody tr { 
+            transition: background 0.2s;
+        }
+        tbody tr:hover { 
+            background: linear-gradient(90deg, rgba(102,126,234,0.1) 0%, rgba(118,75,162,0.1) 100%);
+        }
+        tbody tr:last-child td { border-bottom: none; }
+        .rank { 
+            font-weight: 700;
+            color: #667eea;
+            font-size: 16px;
+        }
+        .refresh-btn, .fetch-btn { 
+            /* Moved to sidebar */
+        }
+        .fetch-btn {
+            /* Moved to sidebar */
+        }
+        .refresh-btn:hover, .fetch-btn:hover { 
+            /* Moved to sidebar */
+        }
+        .last-updated { 
+            color: #666;
+            font-size: 13px;
+        }
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .clocks {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin: 15px 0;
+            flex-wrap: wrap;
+        }
+        .clock {
+            background: rgba(102,126,234,0.1);
+            padding: 10px 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .clock-label {
+            font-size: 11px;
+            color: #667eea;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        .clock-time {
+            font-size: 18px;
+            font-weight: 700;
+            color: #333;
+        }
+        .filter-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            align-items: center;
+        }
+        .filter-input {
+            padding: 8px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            flex: 1;
+        }
+        .download-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 13px;
+        }
+        .download-btn:hover {
+            background: #5568d3;
+        }
+        .filter-select {
+            padding: 8px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            background: white;
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <h1>🛡️ Dashboard</h1>
+        <div class="user-info">
+            <div class="username" id="currentUser">Loading...</div>
+            <div class="role" id="currentRole"></div>
+        </div>
+        <button class="sidebar-btn" onclick="refreshData()">🔄 Refresh Data</button>
+        <div class="dropdown">
+            <a href="/log-fetch" class="sidebar-btn">📥 Fetch Logs</a>
+            <div class="dropdown-content">
+                <a href="/fetch" class="dropdown-item">☁️ Fetch CloudWatch Logs</a>
+                <a href="/fetch-s3" class="dropdown-item">📦 Fetch S3 Logs</a>
+            </div>
+        </div>
+        <div class="dropdown">
+            <a href="/live-logs" class="sidebar-btn">📺 Live Monitoring</a>
+            <div class="dropdown-content">
+                <a href="/live-logs" class="dropdown-item">📺 Live Log Viewer</a>
+                <a href="/live-monitor" class="dropdown-item">🔴 Live Monitoring</a>
+            </div>
+        </div>
+        <div class="dropdown">
+            <a href="/reports" class="sidebar-btn">📊 Reports</a>
+            <div class="dropdown-content">
+                <a href="/reports" class="dropdown-item">📋 View Reports</a>
+                <a href="#" onclick="viewFullReport(); return false;" class="dropdown-item">📊 Full Report</a>
+                <a href="#" onclick="downloadReport('csv'); return false;" class="dropdown-item">💾 Download CSV</a>
+                <a href="#" onclick="downloadReport('pdf'); return false;" class="dropdown-item">📄 Download PDF</a>
+            </div>
+        </div>
+        <div id="adminMenu" style="display: none;">
+            <a href="/users" class="sidebar-btn">👥 User Management</a>
+        </div>
+        <button class="sidebar-btn" onclick="logout()" style="margin-top: auto; background: rgba(255,255,255,0.1);">🚪 Logout</button>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <div class="header">
+            <h1>Security Analysis Dashboard</h1>
+            <div class="clocks">
+                <div class="clock">
+                    <div class="clock-label">IST</div>
+                    <div class="clock-time" id="istTime">--:--:--</div>
+                </div>
+                <div class="clock">
+                    <div class="clock-label">UTC</div>
+                    <div class="clock-time" id="utcTime">--:--:--</div>
+                </div>
+                <div class="clock">
+                    <div class="clock-label">EST</div>
+                    <div class="clock-time" id="estTime">--:--:--</div>
+                </div>
+            </div>
+            <p class="last-updated">Last Updated: <span id="lastUpdated">Loading...</span></p>
+        </div>
+
+    <div class="stats">
+        <div class="stat-card" onclick="showAllIPs()" style="cursor: pointer;">
+            <h3>Total IPs</h3>
+            <div class="number" id="totalIps">-</div>
+        </div>
+        <div class="stat-card" onclick="showMaliciousIPs()" style="cursor: pointer;">
+            <h3>Malicious IPs</h3>
+            <div class="number" id="maliciousIps">-</div>
+        </div>
+        <div class="stat-card" onclick="showAllAttacks()" style="cursor: pointer;">
+            <h3>Total Attacks</h3>
+            <div class="number" id="totalAttacks">-</div>
+        </div>
+        <div class="stat-card" onclick="showAllStreams()" style="cursor: pointer;">
+            <h3>Log Streams</h3>
+            <div class="number" id="totalStreams">-</div>
+        </div>
+    </div>
+
+    <!-- Live Monitoring Cards -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px;">
+        <!-- Active Monitors Card -->
+        <div style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); height: 500px; display: flex; flex-direction: column;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3 style="color: #667eea; font-size: 16px; margin: 0;">📡 Active Monitors</h3>
+                <button onclick="refreshMonitors()" style="background: #667eea; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;">🔄 Refresh</button>
+            </div>
+            <div id="activeMonitorsList" style="flex: 1; overflow-y: auto;">
+                <p style="color: #999; text-align: center; padding: 20px;">No active monitors</p>
+            </div>
+        </div>
+
+        <!-- Recent Alerts Card -->
+        <div style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); height: 500px; display: flex; flex-direction: column;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3 style="color: #667eea; font-size: 16px; margin: 0;">🚨 Live Alerts</h3>
+                <a href="/live-monitor" style="background: #667eea; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; text-decoration: none; display: inline-block;">View All</a>
+            </div>
+            <div id="liveAlertsList" style="flex: 1; overflow-y: auto;">
+                <p style="color: #999; text-align: center; padding: 20px;">No recent alerts</p>
+            </div>
+        </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 30px;">
+        <!-- Attack Map Card -->
+        <div style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); height: 500px; display: flex; flex-direction: column;">
+            <h3 style="color: #667eea; font-size: 16px; margin: 0 0 15px 0;">🌍 Attack by Country</h3>
+            <div style="flex: 1; overflow-y: auto;" id="mapTableContainer"></div>
+        </div>
+
+        <!-- Top Streams Card -->
+        <div style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); height: 500px; display: flex; flex-direction: column;">
+            <h3 style="color: #667eea; font-size: 16px; margin: 0 0 15px 0;">📊 Top Attacked Streams</h3>
+            <div style="flex: 1; overflow-y: auto;" id="streamsTableContainer"></div>
+        </div>
+
+        <!-- Top IPs Card -->
+        <div style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); height: 500px; display: flex; flex-direction: column;">
+            <h3 style="color: #667eea; font-size: 16px; margin: 0 0 15px 0;">🎯 Top Attacker IPs</h3>
+            <div style="flex: 1; overflow-y: auto;" id="ipsTableContainer"></div>
+        </div>
+    </div>
+
+    <!-- Stream Details Modal -->
+    <div id="streamModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:1000; overflow:auto;">
+        <div style="background:white; margin:50px auto; max-width:900px; border-radius:15px; padding:30px; position:relative;">
+            <button onclick="closeModal()" style="position:absolute; top:15px; right:15px; background:#667eea; color:white; border:none; padding:8px 15px; border-radius:20px; cursor:pointer; font-weight:600;">✕ Close</button>
+            <h2 style="color:#667eea; margin-bottom:20px;">📊 Details</h2>
+            <div id="modalContent"></div>
+        </div>
+    </div>
+
+    <div class="container">
+    </div>
+    <!-- End Main Content -->
+
+    <script>
+        function toggleSection(section) {
+            const content = document.getElementById(`content-${section}`);
+            const arrow = document.getElementById(`arrow-${section}`);
+            content.classList.toggle('active');
+            arrow.classList.toggle('active');
+        }
+
+        let modalHistory = [];
+
+        async function loadSummary() {
+            const response = await fetch('/api/summary');
+            const data = await response.json();
+            document.getElementById('totalIps').textContent = data.total_ips.toLocaleString();
+            document.getElementById('maliciousIps').textContent = data.malicious_ips.toLocaleString();
+            document.getElementById('totalAttacks').textContent = data.total_attacks.toLocaleString();
+            document.getElementById('totalStreams').textContent = data.total_streams.toLocaleString();
+        }
+
+        async function loadAttackMap() {
+            const response = await fetch('/api/attack-map');
+            const data = await response.json();
+            
+            const container = document.getElementById('mapTableContainer');
+            container.innerHTML = data.map((item, idx) => `
+                <div style="background: #f8f9fa; padding: 10px; border-radius: 6px; margin-bottom: 8px; font-size: 12px; cursor: pointer;" onclick="showCountryDetails('${item.country}')">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div style="flex: 1;">
+                            <div style="color: #667eea; font-weight: 600;">${item.country}</div>
+                        </div>
+                        <div style="background: #667eea; color: white; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;">${item.attacks}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function loadTopStreams() {
+            const response = await fetch('/api/top-streams');
+            const data = await response.json();
+            
+            const container = document.getElementById('streamsTableContainer');
+            container.innerHTML = data.map((item, idx) => `
+                <div style="background: #f8f9fa; padding: 10px; border-radius: 6px; margin-bottom: 8px; font-size: 12px; cursor: pointer;" onclick="showStreamDetails('${item.stream}')">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div style="flex: 1;">
+                            <div style="color: #667eea; font-weight: 600; word-break: break-all;">${item.stream}</div>
+                        </div>
+                        <div style="background: #667eea; color: white; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;">${item.attacks}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function loadTopIPs() {
+            const response = await fetch('/api/top-ips');
+            const data = await response.json();
+            
+            const container = document.getElementById('ipsTableContainer');
+            container.innerHTML = data.map((item, idx) => `
+                <div style="background: #f8f9fa; padding: 10px; border-radius: 6px; margin-bottom: 8px; font-size: 11px; cursor: pointer;" onclick="showIPLogs('${item.ip}')">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                        <div style="color: #667eea; font-weight: 600;">${item.ip}</div>
+                        <div style="background: #667eea; color: white; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;">${item.attacks}</div>
+                    </div>
+                    <div style="color: #666; font-size: 10px; margin-bottom: 2px;">${item.geo}</div>
+                    <div style="color: #999; font-size: 10px;">${item.types}</div>
+                </div>
+            `).join('');
+        }
+
+        async function showStreamDetails(streamName) {
+            const response = await fetch(`/api/stream-details/${encodeURIComponent(streamName)}`);
+            const data = await response.json();
+            
+            const content = `
+                <button onclick="event.stopPropagation(); showAllStreams()" style="background:#667eea; color:white; border:none; padding:8px 15px; border-radius:8px; cursor:pointer; font-weight:600; margin-bottom:15px;">← Back</button>
+                <h3 style="color:#764ba2; margin-bottom:15px;">${data.stream_name}</h3>
+                <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:15px; margin-bottom:25px;">
+                    <div style="background:#f8f9fa; padding:15px; border-radius:10px; text-align:center;">
+                        <div style="font-size:28px; font-weight:700; color:#667eea;">${data.total_attacks.toLocaleString()}</div>
+                        <div style="color:#666; font-size:13px;">Total Attacks</div>
+                    </div>
+                    <div style="background:#f8f9fa; padding:15px; border-radius:10px; text-align:center;">
+                        <div style="font-size:28px; font-weight:700; color:#667eea;">${data.unique_ips}</div>
+                        <div style="color:#666; font-size:13px;">Unique IPs</div>
+                    </div>
+                    <div style="background:#f8f9fa; padding:15px; border-radius:10px; text-align:center;">
+                        <div style="font-size:28px; font-weight:700; color:#667eea;">${data.attack_types.length}</div>
+                        <div style="color:#666; font-size:13px;">Attack Types</div>
+                    </div>
+                </div>
+                <h4 style="color:#667eea; margin:20px 0 10px;">Top 10 Attacker IPs</h4>
+                <table style="width:100%; border-collapse:collapse;">
+                    <thead><tr style="background:#667eea; color:white;"><th style="padding:10px; text-align:left;">IP</th><th style="padding:10px; text-align:right;">Attacks</th></tr></thead>
+                    <tbody>${data.top_ips.map(ip => `<tr style="border-bottom:1px solid #eee; cursor:pointer;" onclick="showIPLogs('${ip.ip}')"><td style="padding:10px; color:#667eea; font-weight:600;">${ip.ip}</td><td style="padding:10px; text-align:right; font-weight:600;">${ip.count}</td></tr>`).join('')}</tbody>
+                </table>
+                <h4 style="color:#667eea; margin:20px 0 10px;">Attack Types Distribution</h4>
+                <div style="display:flex; flex-wrap:wrap; gap:8px;">
+                    ${data.attack_types.map(at => `<span style="background:#667eea; color:white; padding:6px 12px; border-radius:15px; font-size:12px;">${at.type}: ${at.count}</span>`).join('')}
+                </div>
+            `;
+            document.getElementById('modalContent').innerHTML = content;
+            document.getElementById('streamModal').style.display = 'block';
+        }
+
+        async function showCountryDetails(country) {
+            const response = await fetch(`/api/country-details/${encodeURIComponent(country)}`);
+            const data = await response.json();
+            
+            const content = `
+                <button onclick="event.stopPropagation(); loadAttackMap()" style="background:#667eea; color:white; border:none; padding:8px 15px; border-radius:8px; cursor:pointer; font-weight:600; margin-bottom:15px;">← Back</button>
+                <h3 style="color:#764ba2; margin-bottom:15px;">🌍 ${data.country}</h3>
+                <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:15px; margin-bottom:25px;">
+                    <div style="background:#f8f9fa; padding:15px; border-radius:10px; text-align:center;">
+                        <div style="font-size:28px; font-weight:700; color:#667eea;">${data.total_attacks.toLocaleString()}</div>
+                        <div style="color:#666; font-size:13px;">Total Attacks</div>
+                    </div>
+                    <div style="background:#f8f9fa; padding:15px; border-radius:10px; text-align:center;">
+                        <div style="font-size:28px; font-weight:700; color:#667eea;">${data.unique_ips}</div>
+                        <div style="color:#666; font-size:13px;">Unique IPs</div>
+                    </div>
+                    <div style="background:#f8f9fa; padding:15px; border-radius:10px; text-align:center;">
+                        <div style="font-size:28px; font-weight:700; color:#667eea;">${data.attack_types.length}</div>
+                        <div style="color:#666; font-size:13px;">Attack Types</div>
+                    </div>
+                </div>
+                <h4 style="color:#667eea; margin:20px 0 10px;">Top 10 Attacker IPs</h4>
+                <table style="width:100%; border-collapse:collapse;">
+                    <thead><tr style="background:#667eea; color:white;"><th style="padding:10px; text-align:left;">IP</th><th style="padding:10px; text-align:right;">Attacks</th></tr></thead>
+                    <tbody>${data.top_ips.map(ip => `<tr style="border-bottom:1px solid #eee; cursor:pointer;" onclick="showIPLogs('${ip.ip}')"><td style="padding:10px; color:#667eea; font-weight:600;">${ip.ip}</td><td style="padding:10px; text-align:right; font-weight:600;">${ip.count}</td></tr>`).join('')}</tbody>
+                </table>
+                <h4 style="color:#667eea; margin:20px 0 10px;">Top 10 Attacked Streams</h4>
+                <table style="width:100%; border-collapse:collapse;">
+                    <thead><tr style="background:#667eea; color:white;"><th style="padding:10px; text-align:left;">Stream</th><th style="padding:10px; text-align:right;">Attacks</th></tr></thead>
+                    <tbody>${data.top_streams.map(s => `<tr style="border-bottom:1px solid #eee;"><td style="padding:10px;">${s.stream}</td><td style="padding:10px; text-align:right; font-weight:600;">${s.count}</td></tr>`).join('')}</tbody>
+                </table>
+                <h4 style="color:#667eea; margin:20px 0 10px;">Attack Types Distribution</h4>
+                <div style="display:flex; flex-wrap:wrap; gap:8px;">
+                    ${data.attack_types.map(at => `<span style="background:#667eea; color:white; padding:6px 12px; border-radius:15px; font-size:12px;">${at.type}: ${at.count}</span>`).join('')}
+                </div>
+            `;
+            document.getElementById('modalContent').innerHTML = content;
+            document.getElementById('streamModal').style.display = 'block';
+        }
+
+        async function showIPLogs(ip) {
+            const response = await fetch(`/api/ip-logs/${encodeURIComponent(ip)}`);
+            const data = await response.json();
+            
+            const content = `
+                <button onclick="event.stopPropagation(); showMaliciousIPs()" style="background:#667eea; color:white; border:none; padding:8px 15px; border-radius:8px; cursor:pointer; font-weight:600; margin-bottom:15px;">← Back</button>
+                <h3 style="color:#764ba2; margin-bottom:15px;">💻 IP: ${data.ip}</h3>
+                <div style="background:#f8f9fa; padding:15px; border-radius:10px; text-align:center; margin-bottom:20px;">
+                    <div style="font-size:28px; font-weight:700; color:#667eea;">${data.total_logs.toLocaleString()}</div>
+                    <div style="color:#666; font-size:13px;">Total Log Entries</div>
+                </div>
+                <h4 style="color:#667eea; margin:20px 0 10px;">Log Details (Latest 100)</h4>
+                <div style="max-height:500px; overflow-y:auto;">
+                    <table style="width:100%; border-collapse:collapse; font-size:12px;">
+                        <thead style="position:sticky; top:0;"><tr style="background:#667eea; color:white;"><th style="padding:8px; text-align:left;">Stream</th><th style="padding:8px; text-align:left;">Attack Type</th><th style="padding:8px; text-align:left;">Method</th><th style="padding:8px; text-align:left;">Path</th><th style="padding:8px;">Status</th><th style="padding:8px;">Raw Log</th></tr></thead>
+                        <tbody>${data.logs.map(log => `<tr style="border-bottom:1px solid #eee;"><td style="padding:8px;">${log.stream_name}</td><td style="padding:8px;"><span style="background:#764ba2; color:white; padding:2px 6px; border-radius:8px; font-size:11px;">${log.attack_type}</span></td><td style="padding:8px;">${log.method}</td><td style="padding:8px; word-break:break-all; max-width:300px;">${log.path}</td><td style="padding:8px; text-align:center;">${log.status}</td><td style="padding:8px;"><button onclick='showRawLog(${JSON.stringify(log.raw_log || "").replace(/'/g, "&#39;")})' style="background:#667eea; color:white; border:none; padding:4px 8px; border-radius:5px; cursor:pointer; font-size:11px;">View</button></td></tr>`).join('')}</tbody>
+                    </table>
+                </div>
+            `;
+            document.getElementById('modalContent').innerHTML = content;
+            document.getElementById('streamModal').style.display = 'block';
+        }
+
+        function showRawLog(rawLog) {
+            if (!rawLog) {
+                alert('No raw log data available');
+                return;
+            }
+            
+            let formatted = rawLog;
+            try {
+                // Try to parse and format as JSON
+                const parsed = JSON.parse(rawLog);
+                formatted = JSON.stringify(parsed, null, 2);
+            } catch (e) {
+                // Not JSON, keep as is
+            }
+            
+            const content = `
+                <h3 style="color:#764ba2; margin-bottom:15px;">📄 Raw Log Data</h3>
+                <div style="background:#f8f9fa; padding:15px; border-radius:10px; max-height:500px; overflow:auto;">
+                    <pre style="margin:0; white-space:pre-wrap; word-wrap:break-word; font-family:monospace; font-size:11px;">${formatted}</pre>
+                </div>
+                <button onclick="copyToClipboard(${JSON.stringify(rawLog).replace(/'/g, "&#39;")})" style="margin-top:15px; background:#667eea; color:white; border:none; padding:10px 20px; border-radius:8px; cursor:pointer; font-weight:600;">📋 Copy to Clipboard</button>
+            `;
+            document.getElementById('modalContent').innerHTML = content;
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                alert('Copied to clipboard!');
+            }).catch(() => {
+                alert('Failed to copy');
+            });
+        }
+
+        async function viewFullReport() {
+            const response = await fetch('/api/full-report');
+            const data = await response.json();
+            
+            const content = `
+                <h3 style="color:#764ba2; margin-bottom:20px;">📊 Complete Detailed Report</h3>
+                
+                <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:15px; margin-bottom:25px;">
+                    <div style="background:#f8f9fa; padding:15px; border-radius:10px; text-align:center;">
+                        <div style="font-size:24px; font-weight:700; color:#667eea;">${data.summary.total_ips.toLocaleString()}</div>
+                        <div style="color:#666; font-size:12px;">Total IPs</div>
+                    </div>
+                    <div style="background:#f8f9fa; padding:15px; border-radius:10px; text-align:center;">
+                        <div style="font-size:24px; font-weight:700; color:#667eea;">${data.summary.malicious_ips.toLocaleString()}</div>
+                        <div style="color:#666; font-size:12px;">Malicious IPs</div>
+                    </div>
+                    <div style="background:#f8f9fa; padding:15px; border-radius:10px; text-align:center;">
+                        <div style="font-size:24px; font-weight:700; color:#667eea;">${data.summary.total_attacks.toLocaleString()}</div>
+                        <div style="color:#666; font-size:12px;">Total Attacks</div>
+                    </div>
+                    <div style="background:#f8f9fa; padding:15px; border-radius:10px; text-align:center;">
+                        <div style="font-size:24px; font-weight:700; color:#667eea;">${data.summary.total_streams.toLocaleString()}</div>
+                        <div style="color:#666; font-size:12px;">Log Streams</div>
+                    </div>
+                </div>
+                
+                <div style="margin-bottom:15px; display:flex; gap:10px; align-items:center;">
+                    <input type="text" id="reportFilter" placeholder="Filter by IP, stream, attack type, path..." style="flex:1; padding:8px 12px; border:2px solid #e0e0e0; border-radius:8px; font-size:14px;" onkeyup="filterReportTable()">
+                    <button onclick="downloadReport('csv')" style="background:#667eea; color:white; border:none; padding:8px 15px; border-radius:8px; cursor:pointer; font-weight:600;">💾 CSV</button>
+                    <button onclick="downloadReport('pdf')" style="background:#764ba2; color:white; border:none; padding:8px 15px; border-radius:8px; cursor:pointer; font-weight:600;">📄 PDF</button>
+                </div>
+                
+                <div style="max-height:500px; overflow:auto;">
+                    <table id="fullReportTable" style="width:100%; border-collapse:collapse; font-size:11px;">
+                        <thead style="position:sticky; top:0;"><tr style="background:#667eea; color:white;">
+                            <th style="padding:8px; text-align:left;">#</th>
+                            <th style="padding:8px; text-align:left;">Stream</th>
+                            <th style="padding:8px; text-align:left;">IP</th>
+                            <th style="padding:8px; text-align:left;">Location</th>
+                            <th style="padding:8px; text-align:left;">Attack Type</th>
+                            <th style="padding:8px; text-align:left;">Method</th>
+                            <th style="padding:8px; text-align:left;">Path</th>
+                            <th style="padding:8px;">Status</th>
+                            <th style="padding:8px;">Raw</th>
+                        </tr></thead>
+                        <tbody>
+                            ${data.malicious_activities.map((log, idx) => {
+                                const geo = data.results.find(r => r.ip === log.ip)?.geo_location || 'Unknown';
+                                return `<tr style="border-bottom:1px solid #eee;">
+                                    <td style="padding:8px; color:#667eea; font-weight:600;">${idx + 1}</td>
+                                    <td style="padding:8px;">${log.stream_name}</td>
+                                    <td style="padding:8px;"><strong style="color:#667eea; cursor:pointer;" onclick="showIPLogs('${log.ip}')">${log.ip}</strong></td>
+                                    <td style="padding:8px;">${geo}</td>
+                                    <td style="padding:8px;"><span style="background:#764ba2; color:white; padding:2px 6px; border-radius:8px; font-size:10px;">${log.attack_type}</span></td>
+                                    <td style="padding:8px;">${log.method}</td>
+                                    <td style="padding:8px; word-break:break-all; max-width:250px;">${log.path}</td>
+                                    <td style="padding:8px; text-align:center;">${log.status}</td>
+                                    <td style="padding:8px;"><button onclick='showRawLog(${JSON.stringify(log.raw_log || "").replace(/'/g, "&#39;")})' style="background:#667eea; color:white; border:none; padding:3px 6px; border-radius:5px; cursor:pointer; font-size:10px;">View</button></td>
+                                </tr>`;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                <div style="margin-top:15px; color:#666; font-size:12px; text-align:center;">
+                    Showing ${data.malicious_activities.length.toLocaleString()} malicious activities | Last Updated: ${data.last_updated}
+                </div>
+            `;
+            document.getElementById('modalContent').innerHTML = content;
+            document.getElementById('streamModal').style.display = 'block';
+        }
+
+        function filterReportTable() {
+            const input = document.getElementById('reportFilter');
+            const filter = input.value.toUpperCase();
+            const table = document.getElementById('fullReportTable');
+            const tr = table.getElementsByTagName('tr');
+
+            for (let i = 1; i < tr.length; i++) {
+                const tds = tr[i].getElementsByTagName('td');
+                let found = false;
+
+                for (let j = 0; j < tds.length; j++) {
+                    if (tds[j].textContent.toUpperCase().indexOf(filter) > -1) {
+                        found = true;
+                        break;
+                    }
+                }
+
+                tr[i].style.display = found ? '' : 'none';
+            }
+        }
+
+        function downloadReport(format) {
+            if (format === 'pdf') {
+                window.location.href = '/api/download-pdf';
+            } else {
+                window.location.href = '/api/download-report';
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('streamModal').style.display = 'none';
+        }
+
+        async function showAllIPs() {
+            const response = await fetch('/api/full-report');
+            const data = await response.json();
+            
+            const ipMap = {};
+            data.results.forEach(r => {
+                if (!ipMap[r.ip]) {
+                    ipMap[r.ip] = { geo: r.geo_location, attacks: 0, types: new Set() };
+                }
+            });
+            data.malicious_activities.forEach(a => {
+                if (ipMap[a.ip]) {
+                    ipMap[a.ip].attacks++;
+                    ipMap[a.ip].types.add(a.attack_type);
+                }
+            });
+            
+            const ips = Object.entries(ipMap).sort((a, b) => b[1].attacks - a[1].attacks);
+            
+            const content = `
+                <h3 style="color:#764ba2; margin-bottom:15px;">📊 All IPs (${ips.length})</h3>
+                <button onclick="downloadModalData('all_ips')" style="background:#667eea; color:white; border:none; padding:8px 15px; border-radius:8px; cursor:pointer; font-weight:600; margin-bottom:15px;">💾 Download CSV</button>
+                <div style="max-height:500px; overflow-y:auto;">
+                    <table id="modalTable" style="width:100%; border-collapse:collapse; font-size:12px;">
+                        <thead style="position:sticky; top:0;"><tr style="background:#667eea; color:white;">
+                            <th style="padding:10px; text-align:left;">#</th>
+                            <th style="padding:10px; text-align:left;">IP Address</th>
+                            <th style="padding:10px; text-align:left;">Location</th>
+                            <th style="padding:10px; text-align:right;">Attacks</th>
+                            <th style="padding:10px; text-align:left;">Types</th>
+                        </tr></thead>
+                        <tbody>
+                            ${ips.map((ip, idx) => `<tr style="border-bottom:1px solid #eee; cursor:pointer;" onclick="showIPLogs('${ip[0]}')">
+                                <td style="padding:10px; color:#667eea; font-weight:600;">${idx + 1}</td>
+                                <td style="padding:10px; font-weight:600;">${ip[0]}</td>
+                                <td style="padding:10px;">${ip[1].geo}</td>
+                                <td style="padding:10px; text-align:right; font-weight:600;">${ip[1].attacks}</td>
+                                <td style="padding:10px;">${Array.from(ip[1].types).join(', ')}</td>
+                            </tr>`).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            document.getElementById('modalContent').innerHTML = content;
+            document.getElementById('streamModal').style.display = 'block';
+        }
+
+        async function showMaliciousIPs() {
+            const response = await fetch('/api/full-report');
+            const data = await response.json();
+            
+            const ipMap = {};
+            data.malicious_activities.forEach(a => {
+                if (!ipMap[a.ip]) {
+                    ipMap[a.ip] = { attacks: 0, types: new Set(), streams: new Set() };
+                }
+                ipMap[a.ip].attacks++;
+                ipMap[a.ip].types.add(a.attack_type);
+                ipMap[a.ip].streams.add(a.stream_name);
+            });
+            
+            const geoMap = {};
+            data.results.forEach(r => { geoMap[r.ip] = r.geo_location; });
+            
+            const ips = Object.entries(ipMap).sort((a, b) => b[1].attacks - a[1].attacks);
+            
+            const content = `
+                <h3 style="color:#764ba2; margin-bottom:15px;">🚨 Malicious IPs (${ips.length})</h3>
+                <button onclick="downloadModalData('malicious_ips')" style="background:#e74c3c; color:white; border:none; padding:8px 15px; border-radius:8px; cursor:pointer; font-weight:600; margin-bottom:15px;">💾 Download CSV</button>
+                <div style="max-height:500px; overflow-y:auto;">
+                    <table id="modalTable" style="width:100%; border-collapse:collapse; font-size:12px;">
+                        <thead style="position:sticky; top:0;"><tr style="background:#e74c3c; color:white;">
+                            <th style="padding:10px; text-align:left;">#</th>
+                            <th style="padding:10px; text-align:left;">IP Address</th>
+                            <th style="padding:10px; text-align:left;">Location</th>
+                            <th style="padding:10px; text-align:right;">Attacks</th>
+                            <th style="padding:10px; text-align:left;">Attack Types</th>
+                        </tr></thead>
+                        <tbody>
+                            ${ips.map((ip, idx) => `<tr style="border-bottom:1px solid #eee; cursor:pointer;" onclick="showIPLogs('${ip[0]}')">
+                                <td style="padding:10px; color:#e74c3c; font-weight:600;">${idx + 1}</td>
+                                <td style="padding:10px; font-weight:600;">${ip[0]}</td>
+                                <td style="padding:10px;">${geoMap[ip[0]] || 'Unknown'}</td>
+                                <td style="padding:10px; text-align:right; font-weight:600; color:#e74c3c;">${ip[1].attacks}</td>
+                                <td style="padding:10px;">${Array.from(ip[1].types).join(', ')}</td>
+                            </tr>`).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            document.getElementById('modalContent').innerHTML = content;
+            document.getElementById('streamModal').style.display = 'block';
+        }
+
+        async function showAllAttacks() {
+            const response = await fetch('/api/full-report');
+            const data = await response.json();
+            
+            const typeMap = {};
+            data.malicious_activities.forEach(a => {
+                if (!typeMap[a.attack_type]) {
+                    typeMap[a.attack_type] = { count: 0, ips: new Set(), streams: new Set() };
+                }
+                typeMap[a.attack_type].count++;
+                typeMap[a.attack_type].ips.add(a.ip);
+                typeMap[a.attack_type].streams.add(a.stream_name);
+            });
+            
+            const types = Object.entries(typeMap).sort((a, b) => b[1].count - a[1].count);
+            
+            const content = `
+                <h3 style="color:#764ba2; margin-bottom:15px;">⚔️ All Attacks (${data.malicious_activities.length.toLocaleString()})</h3>
+                <button onclick="downloadModalData('all_attacks')" style="background:#667eea; color:white; border:none; padding:8px 15px; border-radius:8px; cursor:pointer; font-weight:600; margin-bottom:15px;">💾 Download CSV</button>
+                <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:15px; margin-bottom:20px;">
+                    <div style="background:#f8f9fa; padding:15px; border-radius:10px; text-align:center;">
+                        <div style="font-size:28px; font-weight:700; color:#667eea;">${types.length}</div>
+                        <div style="color:#666; font-size:13px;">Attack Types</div>
+                    </div>
+                    <div style="background:#f8f9fa; padding:15px; border-radius:10px; text-align:center;">
+                        <div style="font-size:28px; font-weight:700; color:#667eea;">${new Set(data.malicious_activities.map(a => a.ip)).size}</div>
+                        <div style="color:#666; font-size:13px;">Unique Attackers</div>
+                    </div>
+                </div>
+                <div style="max-height:400px; overflow-y:auto;">
+                    <table id="modalTable" style="width:100%; border-collapse:collapse; font-size:12px;">
+                        <thead style="position:sticky; top:0;"><tr style="background:#667eea; color:white;">
+                            <th style="padding:10px; text-align:left;">Attack Type</th>
+                            <th style="padding:10px; text-align:right;">Count</th>
+                            <th style="padding:10px; text-align:right;">Unique IPs</th>
+                            <th style="padding:10px; text-align:right;">Streams</th>
+                        </tr></thead>
+                        <tbody>
+                            ${types.map(type => `<tr style="border-bottom:1px solid #eee; cursor:pointer;" onclick="showAttackTypeDetails('${type[0].replace(/'/g, "\\'")}')">
+                                <td style="padding:10px;">${type[0]}</td>
+                                <td style="padding:10px; text-align:right; font-weight:600;">${type[1].count.toLocaleString()}</td>
+                                <td style="padding:10px; text-align:right;">${type[1].ips.size}</td>
+                                <td style="padding:10px; text-align:right;">${type[1].streams.size}</td>
+                            </tr>`).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            document.getElementById('modalContent').innerHTML = content;
+            document.getElementById('streamModal').style.display = 'block';
+        }
+
+        async function showAllStreams() {
+            const response = await fetch('/api/full-report');
+            const data = await response.json();
+            
+            const streamMap = {};
+            data.results.forEach(r => {
+                if (!streamMap[r.stream_name]) {
+                    streamMap[r.stream_name] = { ips: new Set(), attacks: 0 };
+                }
+                streamMap[r.stream_name].ips.add(r.ip);
+            });
+            data.malicious_activities.forEach(a => {
+                if (streamMap[a.stream_name]) {
+                    streamMap[a.stream_name].attacks++;
+                }
+            });
+            
+            const streams = Object.entries(streamMap).sort((a, b) => b[1].attacks - a[1].attacks);
+            
+            const content = `
+                <h3 style="color:#764ba2; margin-bottom:15px;">📊 All Log Streams (${streams.length})</h3>
+                <button onclick="downloadModalData('all_streams')" style="background:#667eea; color:white; border:none; padding:8px 15px; border-radius:8px; cursor:pointer; font-weight:600; margin-bottom:15px;">💾 Download CSV</button>
+                <div style="max-height:500px; overflow-y:auto;">
+                    <table id="modalTable" style="width:100%; border-collapse:collapse; font-size:12px;">
+                        <thead style="position:sticky; top:0;"><tr style="background:#667eea; color:white;">
+                            <th style="padding:10px; text-align:left;">#</th>
+                            <th style="padding:10px; text-align:left;">Stream Name</th>
+                            <th style="padding:10px; text-align:right;">Attacks</th>
+                            <th style="padding:10px; text-align:right;">Unique IPs</th>
+                        </tr></thead>
+                        <tbody>
+                            ${streams.map((stream, idx) => `<tr style="border-bottom:1px solid #eee; cursor:pointer;" onclick="showStreamDetails('${stream[0]}')">
+                                <td style="padding:10px; color:#667eea; font-weight:600;">${idx + 1}</td>
+                                <td style="padding:10px; word-break:break-all;">${stream[0]}</td>
+                                <td style="padding:10px; text-align:right; font-weight:600;">${stream[1].attacks.toLocaleString()}</td>
+                                <td style="padding:10px; text-align:right;">${stream[1].ips.size}</td>
+                            </tr>`).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            document.getElementById('modalContent').innerHTML = content;
+            document.getElementById('streamModal').style.display = 'block';
+        }
+
+        function downloadModalData(type) {
+            const table = document.getElementById('modalTable');
+            const rows = table.querySelectorAll('tr');
+            let csv = [];
+
+            rows.forEach(row => {
+                const cols = row.querySelectorAll('td, th');
+                const csvRow = [];
+                cols.forEach(col => {
+                    csvRow.push('"' + col.textContent.replace(/"/g, '""') + '"');
+                });
+                csv.push(csvRow.join(','));
+            });
+
+            const csvContent = csv.join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = type + '_' + new Date().toISOString().slice(0,10) + '.csv';
+            a.click();
+            window.URL.revokeObjectURL(url);
+        }
+
+        async function showAttackTypeDetails(attackType) {
+            const response = await fetch('/api/full-report');
+            const data = await response.json();
+            
+            const filtered = data.malicious_activities.filter(a => a.attack_type === attackType);
+            const ipMap = {};
+            const streamMap = {};
+            
+            filtered.forEach(a => {
+                ipMap[a.ip] = (ipMap[a.ip] || 0) + 1;
+                streamMap[a.stream_name] = (streamMap[a.stream_name] || 0) + 1;
+            });
+            
+            const topIPs = Object.entries(ipMap).sort((a, b) => b[1] - a[1]).slice(0, 10);
+            const topStreams = Object.entries(streamMap).sort((a, b) => b[1] - a[1]).slice(0, 10);
+            const geoMap = {};
+            data.results.forEach(r => { geoMap[r.ip] = r.geo_location; });
+            
+            const content = `
+                <button onclick="event.stopPropagation(); showAllAttacks()" style="background:#667eea; color:white; border:none; padding:8px 15px; border-radius:8px; cursor:pointer; font-weight:600; margin-bottom:15px;">← Back</button>
+                <h3 style="color:#764ba2; margin-bottom:15px;">⚔️ ${attackType}</h3>
+                <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:15px; margin-bottom:20px;">
+                    <div style="background:#f8f9fa; padding:15px; border-radius:10px; text-align:center;">
+                        <div style="font-size:28px; font-weight:700; color:#667eea;">${filtered.length.toLocaleString()}</div>
+                        <div style="color:#666; font-size:13px;">Total Attacks</div>
+                    </div>
+                    <div style="background:#f8f9fa; padding:15px; border-radius:10px; text-align:center;">
+                        <div style="font-size:28px; font-weight:700; color:#667eea;">${Object.keys(ipMap).length}</div>
+                        <div style="color:#666; font-size:13px;">Unique IPs</div>
+                    </div>
+                    <div style="background:#f8f9fa; padding:15px; border-radius:10px; text-align:center;">
+                        <div style="font-size:28px; font-weight:700; color:#667eea;">${Object.keys(streamMap).length}</div>
+                        <div style="color:#666; font-size:13px;">Streams</div>
+                    </div>
+                </div>
+                <h4 style="color:#667eea; margin:20px 0 10px;">Top 10 Attacker IPs</h4>
+                <table style="width:100%; border-collapse:collapse; font-size:12px; margin-bottom:20px;">
+                    <thead><tr style="background:#667eea; color:white;">
+                        <th style="padding:10px; text-align:left;">IP</th>
+                        <th style="padding:10px; text-align:left;">Location</th>
+                        <th style="padding:10px; text-align:right;">Attacks</th>
+                    </tr></thead>
+                    <tbody>${topIPs.map(ip => `<tr style="border-bottom:1px solid #eee; cursor:pointer;" onclick="showIPLogs('${ip[0]}')">
+                        <td style="padding:10px; color:#667eea; font-weight:600;">${ip[0]}</td>
+                        <td style="padding:10px;">${geoMap[ip[0]] || 'Unknown'}</td>
+                        <td style="padding:10px; text-align:right; font-weight:600;">${ip[1]}</td>
+                    </tr>`).join('')}</tbody>
+                </table>
+                <h4 style="color:#667eea; margin:20px 0 10px;">Top 10 Attacked Streams</h4>
+                <table style="width:100%; border-collapse:collapse; font-size:12px;">
+                    <thead><tr style="background:#667eea; color:white;">
+                        <th style="padding:10px; text-align:left;">Stream</th>
+                        <th style="padding:10px; text-align:right;">Attacks</th>
+                    </tr></thead>
+                    <tbody>${topStreams.map(s => `<tr style="border-bottom:1px solid #eee; cursor:pointer;" onclick="showStreamDetails('${s[0]}')">
+                        <td style="padding:10px;">${s[0]}</td>
+                        <td style="padding:10px; text-align:right; font-weight:600;">${s[1]}</td>
+                    </tr>`).join('')}</tbody>
+                </table>
+            `;
+            document.getElementById('modalContent').innerHTML = content;
+            document.getElementById('streamModal').style.display = 'block';
+        }
+
+        async function refreshData() {
+            document.querySelector('.refresh-btn').textContent = '⏳ Refreshing...';
+            const response = await fetch('/api/refresh');
+            const data = await response.json();
+            if (data.success) {
+                document.getElementById('lastUpdated').textContent = data.last_updated;
+                await loadAllData();
+            }
+            document.querySelector('.refresh-btn').textContent = '🔄 Refresh Data';
+        }
+
+        async function loadAllData() {
+            await loadSummary();
+            await loadAttackMap();
+            await loadTopStreams();
+            await loadTopIPs();
+            await loadMonitors();
+            await loadLiveAlerts();
+        }
+
+        let monitorsExpanded = true;
+        let alertsExpanded = true;
+        let allMonitors = [];
+        let allAlerts = [];
+
+        function toggleCard(type) {
+            if (type === 'monitors') {
+                monitorsExpanded = !monitorsExpanded;
+                document.getElementById('arrowMonitors').textContent = monitorsExpanded ? '▼' : '▶';
+                loadMonitors();
+            } else if (type === 'alerts') {
+                alertsExpanded = !alertsExpanded;
+                document.getElementById('arrowAlerts').textContent = alertsExpanded ? '▼' : '▶';
+                loadLiveAlerts();
+            }
+        }
+
+        async function loadMonitors() {
+            try {
+                const response = await fetch('/api/monitor/status');
+                const monitors = await response.json();
+                
+                const container = document.getElementById('activeMonitorsList');
+                
+                if (monitors.length === 0) {
+                    container.innerHTML = '<p style="color: #999; text-align: center; padding: 20px; font-size: 13px;">No active monitors</p>';
+                    return;
+                }
+                
+                container.innerHTML = monitors.map(m => `
+                    <div style="background: #f8f9fa; padding: 10px; border-radius: 6px; margin-bottom: 8px; font-size: 12px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 8px;">
+                            <div style="flex: 1;">
+                                <div style="color: #667eea; font-weight: 600; margin-bottom: 3px;">${m.log_group}</div>
+                                <div style="color: #666; font-size: 11px;">
+                                    ${m.running ? '<span style="color: #48bb78;">● Running</span>' : '<span style="color: #999;">● Stopped</span>'} | 
+                                    Alerts: ${m.total_alerts} | 
+                                    Last: ${m.last_check ? new Date(m.last_check).toLocaleTimeString() : 'Never'}
+                                </div>
+                            </div>
+                        </div>
+                        <div id="logs-${m.log_group.replace(/[^a-zA-Z0-9]/g, '_')}" style="background: #f8f9fa; color: #333; padding: 8px; border-radius: 4px; border: 1px solid #e0e0e0; font-family: monospace; font-size: 10px; max-height: 150px; overflow-y: auto;">
+                            <div style="color: #666;">Loading logs...</div>
+                        </div>
+                    </div>
+                `).join('');
+                
+                monitors.forEach(m => {
+                    loadMonitorLogs(m.log_group, m.region);
+                });
+            } catch (e) {
+                console.error('Error loading monitors:', e);
+            }
+        }
+
+        async function loadLiveAlerts() {
+            try {
+                const response = await fetch('/api/monitor/alerts?limit=50');
+                const alerts = await response.json();
+                
+                const container = document.getElementById('liveAlertsList');
+                
+                if (alerts.length === 0) {
+                    container.innerHTML = '<p style="color: #999; text-align: center; padding: 20px; font-size: 13px;">No recent alerts</p>';
+                    return;
+                }
+                
+                // Group alerts by IP + attack_type + path
+                const grouped = {};
+                alerts.forEach(a => {
+                    const key = `${a.ip}|${a.attack_type}|${a.path}`;
+                    if (!grouped[key]) {
+                        grouped[key] = { ...a, count: 0, duplicates: [] };
+                    }
+                    grouped[key].count++;
+                    grouped[key].duplicates.push(a);
+                });
+                
+                const uniqueAlerts = Object.values(grouped);
+                
+                container.innerHTML = uniqueAlerts.map(a => `
+                    <div style="background: #fff5f5; border-left: 3px solid #f56565; padding: 10px; border-radius: 4px; margin-bottom: 8px; font-size: 11px; cursor: pointer;" onclick="showAlertDetails('${a.ip}', '${a.attack_type}', '${encodeURIComponent(a.path)}')">
+                        <div style="display: flex; justify-content: space-between; align-items: start;">
+                            <div style="flex: 1;">
+                                <div style="color: #c53030; font-weight: 600; margin-bottom: 3px;">🚨 ${a.attack_type}</div>
+                                <div style="color: #666; margin-bottom: 2px;">IP: ${a.ip} | ${a.method} ${a.path}</div>
+                                <div style="color: #999; font-size: 10px;">Stream: ${a.stream}</div>
+                                <div style="color: #999; font-size: 10px;">${a.log_group} | ${new Date(a.timestamp).toLocaleString()}</div>
+                            </div>
+                            ${a.count > 1 ? `<div style="background: #f56565; color: white; padding: 4px 8px; border-radius: 12px; font-size: 10px; font-weight: 600;">${a.count}x</div>` : ''}
+                        </div>
+                    </div>
+                `).join('');
+            } catch (e) {
+                console.error('Error loading alerts:', e);
+            }
+        }
+
+        async function showAlertDetails(ip, attackType, path) {
+            const response = await fetch('/api/monitor/alerts?limit=1000');
+            const allAlerts = await response.json();
+            
+            const decodedPath = decodeURIComponent(path);
+            const filtered = allAlerts.filter(a => a.ip === ip && a.attack_type === attackType && a.path === decodedPath);
+            
+            const content = `
+                <button onclick="event.stopPropagation(); closeModal()" style="background:#667eea; color:white; border:none; padding:8px 15px; border-radius:8px; cursor:pointer; font-weight:600; margin-bottom:15px;">← Back</button>
+                <h3 style="color:#764ba2; margin-bottom:15px;">🚨 Alert Details</h3>
+                <div style="background:#f8f9fa; padding:15px; border-radius:10px; margin-bottom:20px;">
+                    <p><b>IP:</b> ${ip}</p>
+                    <p><b>Attack Type:</b> ${attackType}</p>
+                    <p><b>Path:</b> ${decodedPath}</p>
+                    <p><b>Total Occurrences:</b> ${filtered.length}</p>
+                </div>
+                <h4 style="color:#667eea; margin-bottom:10px;">All Occurrences (${filtered.length})</h4>
+                <div style="max-height:400px; overflow-y:auto;">
+                    ${filtered.map(a => `
+                        <div style="background:#fff; border:1px solid #e0e0e0; padding:10px; border-radius:6px; margin-bottom:8px; font-size:12px;">
+                            <div><b>Time:</b> ${new Date(a.timestamp).toLocaleString()}</div>
+                            <div><b>Stream:</b> ${a.stream}</div>
+                            <div><b>Method:</b> ${a.method} | <b>Status:</b> ${a.status}</div>
+                            <div><b>Log Group:</b> ${a.log_group}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            document.getElementById('modalContent').innerHTML = content;
+            document.getElementById('streamModal').style.display = 'block';
+        }
+
+        async function refreshMonitors() {
+            await loadMonitors();
+            await loadLiveAlerts();
+        }
+
+        async function loadMonitorLogs(logGroup, region) {
+            const containerId = `logs-${logGroup.replace(/[^a-zA-Z0-9]/g, '_')}`;
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            
+            try {
+                const response = await fetch(`/api/recent-logs?log_group=${encodeURIComponent(logGroup)}&region=${region || 'us-west-2'}&limit=5`);
+                const data = await response.json();
+                
+                if (data.logs && data.logs.length > 0) {
+                    container.innerHTML = data.logs.map(log => {
+                        const time = new Date(log.timestamp).toLocaleTimeString();
+                        const isAttack = log.is_attack ? 'color: #c53030;' : 'color: #333;';
+                        return `<div style="${isAttack} margin-bottom: 4px; border-left: 2px solid ${log.is_attack ? '#f56565' : 'transparent'}; padding-left: 6px;">
+                            <span style="color: #666;">${time}</span> ${escapeHtml(log.message.substring(0, 100))}${log.message.length > 100 ? '...' : ''}
+                            ${log.is_attack ? `<span style="background: #f56565; color: white; padding: 1px 4px; border-radius: 2px; font-size: 9px; margin-left: 4px;">${log.attack_type}</span>` : ''}
+                        </div>`;
+                    }).join('');
+                } else {
+                    container.innerHTML = '<div style="color: #666;">No recent logs</div>';
+                }
+            } catch (e) {
+                container.innerHTML = '<div style="color: #666;">Error loading logs</div>';
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        window.onload = () => {
+            loadUserInfo();
+            loadAllData();
+            fetch('/api/refresh').then(r => r.json()).then(d => {
+                document.getElementById('lastUpdated').textContent = d.last_updated;
+            });
+            updateClocks();
+            setInterval(updateClocks, 1000);
+            
+            // Auto-refresh monitors and alerts every 30 seconds
+            setInterval(() => {
+                loadMonitors();
+                loadLiveAlerts();
+            }, 30000);
+        };
+
+        async function loadUserInfo() {
+            try {
+                const response = await fetch('/api/current-user');
+                const data = await response.json();
+                if (data.user) {
+                    document.getElementById('currentUser').textContent = data.user.username;
+                    document.getElementById('currentRole').textContent = `Role: ${data.user.role.toUpperCase()}`;
+                    if (data.user.role === 'admin') {
+                        document.getElementById('adminMenu').style.display = 'block';
+                    }
+                }
+            } catch (e) {
+                console.error('Error loading user info:', e);
+            }
+        }
+
+        async function logout() {
+            if (confirm('Are you sure you want to logout?')) {
+                await fetch('/api/logout', { method: 'POST' });
+                window.location.href = '/login';
+            }
+        }
+
+        function updateClocks() {
+            const now = new Date();
+            
+            // IST (UTC+5:30)
+            const ist = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+            document.getElementById('istTime').textContent = ist.toLocaleTimeString('en-US', { hour12: false });
+            
+            // UTC
+            const utc = new Date(now.toLocaleString('en-US', { timeZone: 'UTC' }));
+            document.getElementById('utcTime').textContent = utc.toLocaleTimeString('en-US', { hour12: false });
+            
+            // EST (UTC-5)
+            const est = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+            document.getElementById('estTime').textContent = est.toLocaleTimeString('en-US', { hour12: false });
+        }
+
+        function getCountryFlag(country) {
+            const flags = {
+                'United States': '🇺🇸', 'China': '🇨🇳', 'Russia': '🇷🇺', 'Germany': '🇩🇪',
+                'United Kingdom': '🇬🇧', 'France': '🇫🇷', 'India': '🇮🇳', 'Brazil': '🇧🇷',
+                'Canada': '🇨🇦', 'Australia': '🇦🇺', 'Japan': '🇯🇵', 'South Korea': '🇰🇷',
+                'Netherlands': '🇳🇱', 'Singapore': '🇸🇬', 'Ireland': '🇮🇪', 'Spain': '🇪🇸',
+                'Italy': '🇮🇹', 'Sweden': '🇸🇪', 'Poland': '🇵🇱', 'Ukraine': '🇺🇦',
+                'Turkey': '🇹🇷', 'Mexico': '🇲🇽', 'Argentina': '🇦🇷', 'South Africa': '🇿🇦',
+                'Israel': '🇮🇱', 'UAE': '🇦🇪', 'Saudi Arabia': '🇸🇦', 'Thailand': '🇹🇭',
+                'Vietnam': '🇻🇳', 'Indonesia': '🇮🇩', 'Philippines': '🇵🇭', 'Malaysia': '🇲🇾',
+                'Hong Kong': '🇭🇰', 'Taiwan': '🇹🇼', 'Switzerland': '🇨🇭', 'Belgium': '🇧🇪',
+                'Austria': '🇦🇹', 'Norway': '🇳🇴', 'Denmark': '🇩🇰', 'Finland': '🇫🇮',
+                'Portugal': '🇵🇹', 'Greece': '🇬🇷', 'Czech Republic': '🇨🇿', 'Romania': '🇷🇴',
+                'Hungary': '🇭🇺', 'Bulgaria': '🇧🇬', 'Croatia': '🇭🇷', 'Serbia': '🇷🇸',
+                'Chile': '🇨🇱', 'Colombia': '🇨🇴', 'Peru': '🇵🇪', 'Venezuela': '🇻🇪',
+                'Egypt': '🇪🇬', 'Nigeria': '🇳🇬', 'Kenya': '🇰🇪', 'Morocco': '🇲🇦',
+                'Pakistan': '🇵🇰', 'Bangladesh': '🇧🇩', 'Iran': '🇮🇷', 'Iraq': '🇮🇶',
+                'New Zealand': '🇳🇿', 'Lithuania': '🇱🇹', 'Latvia': '🇱🇻', 'Estonia': '🇪🇪'
+            };
+            return flags[country] || '🌍';
+        }
+
+        function filterTable(tableId, columnIndex) {
+            const input = document.getElementById(tableId === 'mapTable' ? 'filterCountry' : tableId === 'streamsTable' ? 'filterStream' : 'filterIP');
+            const filter = input.value.toUpperCase();
+            const table = document.getElementById(tableId);
+            const tr = table.getElementsByTagName('tr');
+
+            for (let i = 1; i < tr.length; i++) {
+                const tds = tr[i].getElementsByTagName('td');
+                let found = false;
+
+                if (columnIndex === 'all') {
+                    for (let j = 0; j < tds.length; j++) {
+                        if (tds[j].textContent.toUpperCase().indexOf(filter) > -1) {
+                            found = true;
+                            break;
+                        }
+                    }
+                } else {
+                    const td = tds[columnIndex];
+                    if (td && td.textContent.toUpperCase().indexOf(filter) > -1) {
+                        found = true;
+                    }
+                }
+
+                tr[i].style.display = found ? '' : 'none';
+            }
+        }
+
+        function applyFilters(tableId) {
+            const table = document.getElementById(tableId);
+            const tr = table.getElementsByTagName('tr');
+            
+            const searchInput = document.getElementById(tableId === 'mapTable' ? 'filterCountry' : tableId === 'streamsTable' ? 'filterStream' : 'filterIP');
+            const searchFilter = searchInput.value.toUpperCase();
+            
+            const topSelect = document.getElementById(tableId === 'mapTable' ? 'topCountry' : tableId === 'streamsTable' ? 'topStream' : 'topIP');
+            const topN = topSelect.value === 'all' ? 999999 : parseInt(topSelect.value);
+            
+            const attackSelect = document.getElementById(tableId === 'mapTable' ? 'attackCountryFilter' : tableId === 'streamsTable' ? 'attackStreamFilter' : 'attackIPFilter');
+            const attackFilter = attackSelect.value;
+            
+            let visibleCount = 0;
+            
+            for (let i = 1; i < tr.length; i++) {
+                const tds = tr[i].getElementsByTagName('td');
+                let show = true;
+                
+                // Text search filter
+                if (searchFilter) {
+                    let found = false;
+                    for (let j = 0; j < tds.length; j++) {
+                        if (tds[j].textContent.toUpperCase().indexOf(searchFilter) > -1) {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) show = false;
+                }
+                
+                // Attack count filter
+                if (show && attackFilter !== 'all') {
+                    const attackCountCol = tableId === 'ipsTable' ? 4 : 2;
+                    const attackCount = parseInt(tds[attackCountCol].textContent.replace(/,/g, ''));
+                    
+                    if (attackFilter === 'more100' && attackCount <= 100) show = false;
+                    if (attackFilter === 'more50' && attackCount <= 50) show = false;
+                    if (attackFilter === 'less50' && attackCount >= 50) show = false;
+                }
+                
+                // Top N filter
+                if (show) {
+                    visibleCount++;
+                    if (visibleCount > topN) show = false;
+                }
+                
+                tr[i].style.display = show ? '' : 'none';
+            }
+        }
+
+        function downloadCSV(tableId, filename) {
+            const table = document.getElementById(tableId);
+            const rows = table.querySelectorAll('tr');
+            let csv = [];
+
+            rows.forEach(row => {
+                if (row.style.display !== 'none') {
+                    const cols = row.querySelectorAll('td, th');
+                    const csvRow = [];
+                    cols.forEach(col => {
+                        csvRow.push('"' + col.textContent.replace(/"/g, '""') + '"');
+                    });
+                    csv.push(csvRow.join(','));
+                }
+            });
+
+            const csvContent = csv.join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename + '_' + new Date().toISOString().slice(0,10) + '.csv';
+            a.click();
+            window.URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>

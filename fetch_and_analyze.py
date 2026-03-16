@@ -32,7 +32,7 @@ def fetch_stream_logs(client, log_group_name, stream_name, start_ms, end_ms, log
             safe_stream_name = stream_name.replace('/', '_').replace('\\', '_').replace(':', '_')
             log_file = os.path.join(log_dir, f'{log_group_safe}_{safe_stream_name}.txt')
             
-            with open(log_file, 'w') as f:
+            with open(log_file, 'w', encoding='utf-8') as f:
                 f.write('\n'.join(stream_logs))
         
         with lock:
@@ -49,7 +49,7 @@ def fetch_stream_logs(client, log_group_name, stream_name, start_ms, end_ms, log
 def fetch_cloudwatch_logs(log_group_name, start_time, end_time, region='us-west-2', progress_queue=None, skip_cleanup=False):
     """Fetch logs from CloudWatch Log Group per stream"""
     client = boto3.client('logs', region_name=region)
-    log_dir = os.path.join(os.path.dirname(__file__), 'Log')
+    log_dir = os.path.join(os.path.dirname(__file__), 'FetchedLogs')
     
     # Clean up old logs only if not skipped (first log group only)
     if not skip_cleanup:
@@ -76,7 +76,7 @@ def fetch_cloudwatch_logs(log_group_name, start_time, end_time, region='us-west-
     
     # Get all log streams
     streams_list = []
-    kwargs = {'logGroupName': log_group_name, 'orderBy': 'LastEventTime', 'descending': True}
+    kwargs = {'logGroupName': log_group_name, 'orderBy': 'LastEventTime', 'descending': True, 'limit': 50}
     
     if progress_queue:
         progress_queue.put({'status': 'info', 'message': 'Discovering log streams...'})
@@ -88,31 +88,20 @@ def fetch_cloudwatch_logs(log_group_name, start_time, end_time, region='us-west-
             break
         kwargs['nextToken'] = response['nextToken']
     
-    streams = {'logStreams': streams_list}
-    total_streams = len(streams['logStreams'])
+    total_streams = len(streams_list)
     
     msg = f"Found {total_streams} log stream(s)"
     print(msg)
     if progress_queue:
         progress_queue.put({'status': 'info', 'message': msg})
     
-    # Filter streams by time range
     start_ms = int(start_time.timestamp() * 1000)
     end_ms = int(end_time.timestamp() * 1000)
-    
-    valid_streams = []
-    for stream in streams['logStreams']:
-        stream_start = stream.get('firstEventTimestamp', 0)
-        stream_end = stream.get('lastEventTimestamp', 0)
-        if not (stream_end < start_ms or stream_start > end_ms):
-            valid_streams.append(stream)
-    
-    print(f"Streams in time range: {len(valid_streams)}")
     
     # Fetch streams in parallel (10 at a time)
     with ThreadPoolExecutor(max_workers=10) as executor:
         futures = []
-        for idx, stream in enumerate(valid_streams, 1):
+        for idx, stream in enumerate(streams_list, 1):
             future = executor.submit(
                 fetch_stream_logs,
                 client,
@@ -123,7 +112,7 @@ def fetch_cloudwatch_logs(log_group_name, start_time, end_time, region='us-west-
                 log_dir,
                 progress_queue,
                 idx,
-                len(valid_streams)
+                total_streams
             )
             futures.append(future)
         

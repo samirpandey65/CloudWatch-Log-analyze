@@ -1,0 +1,36 @@
+Stream Name,Client IP,Geo Location,Number of Requests,Attack Types
+_nginx_access_log_Analytics_PROD_Lapine,20.151.11.236,"Toronto, Canada",362,"Shell Upload, Admin Panel Scan, Info Disclosure"
+_nginx_access_log_Analytics_PROD_Lapine,52.138.22.173,"Toronto, Canada",182,"Admin Panel Scan, Info Disclosure"
+_nginx_access_log_Analytics_PROD_Lapine,34.72.179.167,"Council Bluffs, United States",4,Git Exposure
+_nginx_access_log_Analytics_PROD_Lapine,110.35.80.116,"Jakarta, Indonesia",3,Info Disclosure
+_nginx_access_log_Analytics_PROD_Lapine,101.36.107.228,"Hong Kong, Hong Kong",3,Info Disclosure
+_nginx_access_log_Analytics_PROD_Lapine,185.198.37.177,"Warsaw, Poland",2,Environment File
+_nginx_access_log_Analytics_PROD_Lapine,82.24.217.239,"Zagreb, Croatia",2,Environment File
+_nginx_access_log_Analytics_PROD_Lapine,107.174.128.134,"Buffalo, United States",2,Environment File
+_nginx_access_log_Analytics_PROD_Lapine,45.61.122.243,"Dallas, United States",2,Environment File
+_nginx_access_log_Analytics_PROD_Lapine,23.95.250.120,"Buffalo, United States",2,Environment File
+_nginx_access_log_Analytics_PROD_Lapine,46.203.154.158,"Toronto, Canada",2,Environment File
+_nginx_access_log_Analytics_PROD_Lapine,221.159.119.6,"Wanju, South Korea",2,Info Disclosure
+_nginx_access_log_Analytics_PROD_Lapine,185.72.240.12,"São Paulo, Brazil",2,Environment File
+_nginx_access_log_Analytics_PROD_Lapine,142.111.150.165,"San Francisco, United States",2,Environment File
+_nginx_access_log_Analytics_PROD_Lapine,31.59.10.80,"Frankfurt am Main, Germany",2,Environment File
+_nginx_access_log_Analytics_PROD_Lapine,206.206.73.107,"Beverly Hills, United States",2,Environment File
+_nginx_access_log_Analytics_PROD_Lapine,161.123.209.83,"Tokyo, Japan",2,Environment File
+_nginx_access_log_Analytics_PROD_Lapine,173.211.69.56,"Willow Street, United States",2,Environment File
+_nginx_access_log_Analytics_PROD_Lapine,82.21.244.39,"Johannesburg, South Africa",2,Environment File
+_nginx_access_log_Analytics_PROD_Lapine,45.61.118.170,"Dallas, United States",2,Environment File
+_nginx_access_log_Analytics_PROD_Lapine,104.238.37.130,"Lewes, United States",2,Environment File
+_nginx_access_log_Analytics_PROD_Lapine,23.95.250.187,"Buffalo, United States",2,Environment File
+_nginx_access_log_Analytics_PROD_Lapine,45.61.116.226,"Dallas, United States",2,Environment File
+_nginx_access_log_Analytics_PROD_Lapine,20.70.152.4,"The Rocks, Australia",2,Git Exposure
+_nginx_access_log_Analytics_PROD_Lapine,185.91.69.217,"Redditch, United Kingdom",1,Info Disclosure
+_nginx_access_log_Analytics_PROD_Lapine,103.40.61.98,"Kapurthala Town, India",1,Info Disclosure
+_nginx_access_log_Analytics_PROD_Lapine,34.158.79.105,"Groningen, Netherlands",1,Environment File
+_nginx_access_log_Analytics_PROD_Lapine,101.36.104.242,"Tokyo, Japan",1,Info Disclosure
+_nginx_access_log_Analytics_PROD_Lapine,92.118.112.178,"Atlanta, United States",1,Info Disclosure
+_nginx_access_log_Analytics_PROD_Lapine,102.22.20.125,"Accra, Ghana",1,Config File Access
+_nginx_access_log_Analytics_PROD_Lapine,217.154.69.208,"Berlin, Germany",1,Info Disclosure
+_nginx_access_log_Analytics_PROD_Lapine,106.13.47.28,"Beijing, China",1,Info Disclosure
+_nginx_access_log_Analytics_PROD_Lapine,195.178.110.159,"Andorra la Vella, Andorra",1,Git Exposure
+_nginx_access_log_Analytics_PROD_Lapine,20.83.3.189,"Des Moines, United States",1,Info Disclosure
+_nginx_access_log_Analytics_PROD_Lapine,115.191.32.57,"Beijing, China",1,Info Disclosure

@@ -147,183 +147,129 @@ def detect_attack_type(request_path, status):
 def clean_filename(filename):
     return filename.replace('.txt', '')
 
+def process_single_file(filepath, filename, max_workers):
+    """Process a single log file and return results"""
+    ip_counts = defaultdict(int)
+    ip_attacks = defaultdict(list)
+    file_results = []
+    file_malicious = []
+
+    try:
+        file_size = os.path.getsize(filepath)
+        if file_size == 0:
+            print(f"  Skipping (empty file): {filename}")
+            return [], []
+    except:
+        print(f"  Skipping (file locked): {filename}")
+        return [], []
+
+    try:
+        with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+            line_count = 0
+            for line in f:
+                line = line.strip().rstrip('\r\n')
+                if not line:
+                    continue
+                line_count += 1
+
+                if line_count == 1:
+                    print(f"  First line starts with: {line[:50]}...")
+                    print(f"  Line starts with h2/http: {line.startswith(('h2', 'http', 'https', 'ws', 'wss'))}")
+
+                if line.startswith('{'):
+                    try:
+                        import json
+                        log_data = json.loads(line)
+                        client_ip = log_data.get('httpRequest', {}).get('clientIp', '')
+                        if client_ip:
+                            method = log_data.get('httpRequest', {}).get('httpMethod', 'GET')
+                            path = log_data.get('httpRequest', {}).get('uri', '/')
+                            status = log_data.get('responseCodeSent', '000')
+                            action = log_data.get('action', 'UNKNOWN')
+                            ip_counts[client_ip] += 1
+                            if action == 'BLOCK':
+                                rule_id = log_data.get('terminatingRuleId', 'Unknown Rule')
+                                file_malicious.append({'stream_name': clean_filename(filename), 'ip': client_ip, 'attack_type': f'WAF Block: {rule_id}', 'method': method, 'path': path, 'status': status, 'raw_log': line})
+                                if f'WAF Block: {rule_id}' not in ip_attacks[client_ip]:
+                                    ip_attacks[client_ip].append(f'WAF Block: {rule_id}')
+                            else:
+                                for attack_type in detect_attack_type(path, status):
+                                    file_malicious.append({'stream_name': clean_filename(filename), 'ip': client_ip, 'attack_type': attack_type, 'method': method, 'path': path, 'status': status, 'raw_log': line})
+                                    if attack_type not in ip_attacks[client_ip]:
+                                        ip_attacks[client_ip].append(attack_type)
+                        continue
+                    except:
+                        pass
+
+                if line.startswith(('http', 'https', 'h2', 'ws', 'wss')):
+                    match = re.match(r'^(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+(\d+|-)\s+(\d+|-)\s+(\d+)\s+(\d+)\s+"([^"]+)"', line)
+                    if match:
+                        client_ip = match.group(4).split(':')[0]
+                        status = match.group(9)
+                        request_line = match.group(13)
+                        req_parts = request_line.split()
+                        if len(req_parts) >= 2:
+                            method = req_parts[0]
+                            url = req_parts[1]
+                            path = '/' + url.split('/', 3)[3] if '://' in url and url.count('/') >= 3 else url
+                            ip_counts[client_ip] += 1
+                            for attack_type in detect_attack_type(path, status):
+                                file_malicious.append({'stream_name': clean_filename(filename), 'ip': client_ip, 'attack_type': attack_type, 'method': method, 'path': path, 'status': status, 'raw_log': line})
+                                if attack_type not in ip_attacks[client_ip]:
+                                    ip_attacks[client_ip].append(attack_type)
+                    continue
+
+                match = re.match(r'^([\d\.]+)\s+-\s+-\s+\[.*?\]\s+"(\w+)\s+([^"]+)"\s+(\d+)', line)
+                if match:
+                    ip = match.group(1)
+                    method, path, status = match.group(2), match.group(3), match.group(4)
+                    ip_counts[ip] += 1
+                    for attack_type in detect_attack_type(path, status):
+                        file_malicious.append({'stream_name': clean_filename(filename), 'ip': ip, 'attack_type': attack_type, 'method': method, 'path': path, 'status': status, 'raw_log': line})
+                        if attack_type not in ip_attacks[ip]:
+                            ip_attacks[ip].append(attack_type)
+    except Exception as e:
+        print(f"  Error reading file: {e}")
+        return [], []
+
+    print(f"  Found {len(ip_counts)} unique IPs")
+    ips_with_attacks = [ip for ip in ip_counts.keys() if ip in ip_attacks]
+    geo_data = get_geo_batch(list(ip_counts.keys()), ips_with_attacks, max_workers)
+
+    for ip, count in ip_counts.items():
+        if ip in ip_attacks and ip_attacks[ip]:
+            file_results.append({'stream_name': clean_filename(filename), 'ip': ip, 'geo_location': geo_data.get(ip, 'Unknown'), 'attack_count': count, 'attack_types': ', '.join(ip_attacks[ip])})
+
+    print(f"  Completed!")
+    return file_results, file_malicious
+
+
 def analyze_attack_logs_with_streams(log_dir, progress_callback=None, max_workers=10):
     results = []
     malicious_activities = []
     files = [f for f in os.listdir(log_dir) if f.endswith('.txt')]
-    
+
     print(f"Found {len(files)} log file(s)\n")
     print(f"Using {max_workers} parallel workers for analysis\n")
-    
-    for idx, filename in enumerate(files, 1):
+
+    def process_with_progress(args):
+        idx, filename = args
+        filepath = os.path.join(log_dir, filename)
+        if not os.path.exists(filepath):
+            print(f"  Skipping (file not found): {filename}")
+            return [], []
         print(f"Processing {idx}/{len(files)}: {filename}...")
         if progress_callback:
             progress_callback(idx, len(files), f"Processing {filename}")
-        filepath = os.path.join(log_dir, filename)
-        
-        # Skip if file doesn't exist or is being written
-        if not os.path.exists(filepath):
-            print(f"  Skipping (file not found)")
-            continue
-        
-        try:
-            file_size = os.path.getsize(filepath)
-            if file_size == 0:
-                print(f"  Skipping (empty file)")
-                continue
-        except:
-            print(f"  Skipping (file locked)")
-            continue
-        
-        ip_counts = defaultdict(int)
-        ip_attacks = defaultdict(list)
-        
-        try:
-            with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
-                line_count = 0
-                for line in f:
-                    line = line.strip().rstrip('\r\n')
-                    if not line:
-                        continue
-                    line_count += 1
-                    
-                    # Debug first line
-                    if line_count == 1:
-                        print(f"  First line starts with: {line[:50]}...")
-                        print(f"  Line starts with h2/http: {line.startswith(('h2', 'http', 'https', 'ws', 'wss'))}")
-                    
-                    # Try JSON format (AWS WAF logs)
-                    if line.startswith('{'):
-                        try:
-                            import json
-                            log_data = json.loads(line)
-                            client_ip = log_data.get('httpRequest', {}).get('clientIp', '')
-                            if client_ip:
-                                method = log_data.get('httpRequest', {}).get('httpMethod', 'GET')
-                                path = log_data.get('httpRequest', {}).get('uri', '/')
-                                status = log_data.get('responseCodeSent', '000')
-                                action = log_data.get('action', 'UNKNOWN')
-                                
-                                ip_counts[client_ip] += 1
-                                
-                                # WAF blocked requests are malicious
-                                if action == 'BLOCK':
-                                    rule_id = log_data.get('terminatingRuleId', 'Unknown Rule')
-                                    malicious_activities.append({
-                                        'stream_name': clean_filename(filename),
-                                        'ip': client_ip,
-                                        'attack_type': f'WAF Block: {rule_id}',
-                                        'method': method,
-                                        'path': path,
-                                        'status': status,
-                                        'raw_log': line
-                                    })
-                                    if f'WAF Block: {rule_id}' not in ip_attacks[client_ip]:
-                                        ip_attacks[client_ip].append(f'WAF Block: {rule_id}')
-                                else:
-                                    attack_types = detect_attack_type(path, status)
-                                    if attack_types:
-                                        for attack_type in attack_types:
-                                            malicious_activities.append({
-                                                'stream_name': clean_filename(filename),
-                                                'ip': client_ip,
-                                                'attack_type': attack_type,
-                                                'method': method,
-                                                'path': path,
-                                                'status': status,
-                                                'raw_log': line
-                                            })
-                                            if attack_type not in ip_attacks[client_ip]:
-                                                ip_attacks[client_ip].append(attack_type)
-                            continue
-                        except:
-                            pass
-                    
-                    # Try ALB log format
-                    if line.startswith(('http', 'https', 'h2', 'ws', 'wss')):
-                        # Use regex to handle quoted fields
-                        match = re.match(r'^(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+(\d+|-)\s+(\d+|-)\s+(\d+)\s+(\d+)\s+"([^"]+)"', line)
-                        if match:
-                            client_ip = match.group(4).split(':')[0]
-                            status = match.group(9)
-                            request_line = match.group(13)
-                            
-                            req_parts = request_line.split()
-                            if len(req_parts) >= 2:
-                                method = req_parts[0]
-                                url = req_parts[1]
-                                if '://' in url:
-                                    path = '/' + url.split('/', 3)[3] if url.count('/') >= 3 else '/'
-                                else:
-                                    path = url
-                                
-                                ip_counts[client_ip] += 1
-                                attack_types = detect_attack_type(path, status)
-                                
-                                if attack_types:
-                                    for attack_type in attack_types:
-                                        malicious_activities.append({
-                                            'stream_name': clean_filename(filename),
-                                            'ip': client_ip,
-                                            'attack_type': attack_type,
-                                            'method': method,
-                                            'path': path,
-                                            'status': status,
-                                            'raw_log': line
-                                        })
-                                        if attack_type not in ip_attacks[client_ip]:
-                                            ip_attacks[client_ip].append(attack_type)
-                        continue
-                    
-                    # Apache/Nginx log format
-                    match = re.match(r'^([\d\.]+)\s+-\s+-\s+\[.*?\]\s+"(\w+)\s+([^"]+)"\s+(\d+)', line)
-                    if match:
-                        ip = match.group(1)
-                        method = match.group(2)
-                        path = match.group(3)
-                        status = match.group(4)
-                        
-                        ip_counts[ip] += 1
-                        attack_types = detect_attack_type(path, status)
-                        
-                        if attack_types:
-                            for attack_type in attack_types:
-                                malicious_activities.append({
-                                    'stream_name': clean_filename(filename),
-                                    'ip': ip,
-                                    'attack_type': attack_type,
-                                    'method': method,
-                                    'path': path,
-                                    'status': status,
-                                    'raw_log': line
-                                })
-                                if attack_type not in ip_attacks[ip]:
-                                    ip_attacks[ip].append(attack_type)
-        
-        except Exception as e:
-            print(f"  Error reading file: {e}")
-            continue
-        
-        print(f"  Found {len(ip_counts)} unique IPs")
-        print(f"  Fetching geo data (parallel)...")
-        
-        # Get all IPs that have attacks for geo lookup
-        ips_with_attacks = [ip for ip in ip_counts.keys() if ip in ip_attacks]
-        geo_data = get_geo_batch(list(ip_counts.keys()), ips_with_attacks, max_workers)
-        
-        for ip, count in ip_counts.items():
-            # Only add IPs that have actual attacks (not "Normal")
-            if ip in ip_attacks and ip_attacks[ip]:
-                results.append({
-                    'stream_name': clean_filename(filename),
-                    'ip': ip,
-                    'geo_location': geo_data.get(ip, 'Unknown'),
-                    'attack_count': count,
-                    'attack_types': ', '.join(ip_attacks[ip])
-                })
-        
-        print(f"  Completed!\n")
-    
+        return process_single_file(filepath, filename, max_workers)
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(process_with_progress, (idx, f)): f for idx, f in enumerate(files, 1)}
+        for future in as_completed(futures):
+            file_results, file_malicious = future.result()
+            results.extend(file_results)
+            malicious_activities.extend(file_malicious)
+
     return results, malicious_activities
 
 # Keep old function for backward compatibility
@@ -343,10 +289,10 @@ def save_to_csv(results, output_file):
 def save_malicious_report_with_streams(malicious_activities, output_file):
     with open(output_file, 'w', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
-        writer.writerow(['Stream Name', 'Client IP', 'Attack Type', 'Method', 'Request Path', 'Status Code'])
+        writer.writerow(['Stream Name', 'Client IP', 'Attack Type', 'Method', 'Request Path', 'Status Code', 'Raw Log'])
         for activity in malicious_activities:
-            writer.writerow([activity['stream_name'], activity['ip'], activity['attack_type'], 
-                           activity['method'], activity['path'], activity['status']])
+            writer.writerow([activity['stream_name'], activity['ip'], activity['attack_type'],
+                           activity['method'], activity['path'], activity['status'], activity.get('raw_log', '')])
 
 def save_malicious_report(malicious_activities, output_file):
     save_malicious_report_with_streams(malicious_activities, output_file)

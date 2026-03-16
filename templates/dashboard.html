@@ -331,6 +331,7 @@
         <div id="adminMenu" style="display: none;">
             <a href="/users" class="sidebar-btn">👥 User Management</a>
         </div>
+        <button class="sidebar-btn" onclick="analyzeLogsManually()">🔍 Analyze Logs</button>
         <button class="sidebar-btn" onclick="logout()" style="margin-top: auto; background: rgba(255,255,255,0.1);">🚪 Logout</button>
     </div>
 
@@ -442,6 +443,13 @@
 
         let modalHistory = [];
 
+        function goBackModal() {
+            modalHistory.pop(); // remove current
+            const prev = modalHistory.pop(); // remove previous (will be re-pushed by the function)
+            if (prev) prev();
+            else closeModal();
+        }
+
         async function loadSummary() {
             const response = await fetch('/api/summary');
             const data = await response.json();
@@ -503,11 +511,11 @@
         }
 
         async function showStreamDetails(streamName) {
+            modalHistory.push(() => showStreamDetails(streamName));
             const response = await fetch(`/api/stream-details/${encodeURIComponent(streamName)}`);
             const data = await response.json();
-            
             const content = `
-                <button onclick="event.stopPropagation(); showAllStreams()" style="background:#667eea; color:white; border:none; padding:8px 15px; border-radius:8px; cursor:pointer; font-weight:600; margin-bottom:15px;">← Back</button>
+                <button onclick="event.stopPropagation(); goBackModal()" style="background:#667eea; color:white; border:none; padding:8px 15px; border-radius:8px; cursor:pointer; font-weight:600; margin-bottom:15px;">← Back</button>
                 <h3 style="color:#764ba2; margin-bottom:15px;">${data.stream_name}</h3>
                 <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:15px; margin-bottom:25px;">
                     <div style="background:#f8f9fa; padding:15px; border-radius:10px; text-align:center;">
@@ -538,11 +546,11 @@
         }
 
         async function showCountryDetails(country) {
+            modalHistory.push(() => showCountryDetails(country));
             const response = await fetch(`/api/country-details/${encodeURIComponent(country)}`);
             const data = await response.json();
-            
             const content = `
-                <button onclick="event.stopPropagation(); loadAttackMap()" style="background:#667eea; color:white; border:none; padding:8px 15px; border-radius:8px; cursor:pointer; font-weight:600; margin-bottom:15px;">← Back</button>
+                <button onclick="event.stopPropagation(); goBackModal()" style="background:#667eea; color:white; border:none; padding:8px 15px; border-radius:8px; cursor:pointer; font-weight:600; margin-bottom:15px;">← Back</button>
                 <h3 style="color:#764ba2; margin-bottom:15px;">🌍 ${data.country}</h3>
                 <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:15px; margin-bottom:25px;">
                     <div style="background:#f8f9fa; padding:15px; border-radius:10px; text-align:center;">
@@ -578,11 +586,11 @@
         }
 
         async function showIPLogs(ip) {
+            modalHistory.push(() => showIPLogs(ip));
             const response = await fetch(`/api/ip-logs/${encodeURIComponent(ip)}`);
             const data = await response.json();
-            
             const content = `
-                <button onclick="event.stopPropagation(); showMaliciousIPs()" style="background:#667eea; color:white; border:none; padding:8px 15px; border-radius:8px; cursor:pointer; font-weight:600; margin-bottom:15px;">← Back</button>
+                <button onclick="event.stopPropagation(); goBackModal()" style="background:#667eea; color:white; border:none; padding:8px 15px; border-radius:8px; cursor:pointer; font-weight:600; margin-bottom:15px;">← Back</button>
                 <h3 style="color:#764ba2; margin-bottom:15px;">💻 IP: ${data.ip}</h3>
                 <div style="background:#f8f9fa; padding:15px; border-radius:10px; text-align:center; margin-bottom:20px;">
                     <div style="font-size:28px; font-weight:700; color:#667eea;">${data.total_logs.toLocaleString()}</div>
@@ -734,10 +742,12 @@
         }
 
         function closeModal() {
+            modalHistory = [];
             document.getElementById('streamModal').style.display = 'none';
         }
 
         async function showAllIPs() {
+            modalHistory = [() => showAllIPs()];
             const response = await fetch('/api/full-report');
             const data = await response.json();
             
@@ -785,6 +795,7 @@
         }
 
         async function showMaliciousIPs() {
+            modalHistory = [() => showMaliciousIPs()];
             const response = await fetch('/api/full-report');
             const data = await response.json();
             
@@ -832,6 +843,7 @@
         }
 
         async function showAllAttacks() {
+            modalHistory = [() => showAllAttacks()];
             const response = await fetch('/api/full-report');
             const data = await response.json();
             
@@ -884,6 +896,7 @@
         }
 
         async function showAllStreams() {
+            modalHistory = [() => showAllStreams()];
             const response = await fetch('/api/full-report');
             const data = await response.json();
             
@@ -953,25 +966,22 @@
         }
 
         async function showAttackTypeDetails(attackType) {
+            modalHistory.push(() => showAttackTypeDetails(attackType));
             const response = await fetch('/api/full-report');
             const data = await response.json();
-            
             const filtered = data.malicious_activities.filter(a => a.attack_type === attackType);
             const ipMap = {};
             const streamMap = {};
-            
             filtered.forEach(a => {
                 ipMap[a.ip] = (ipMap[a.ip] || 0) + 1;
                 streamMap[a.stream_name] = (streamMap[a.stream_name] || 0) + 1;
             });
-            
             const topIPs = Object.entries(ipMap).sort((a, b) => b[1] - a[1]).slice(0, 10);
             const topStreams = Object.entries(streamMap).sort((a, b) => b[1] - a[1]).slice(0, 10);
             const geoMap = {};
             data.results.forEach(r => { geoMap[r.ip] = r.geo_location; });
-            
             const content = `
-                <button onclick="event.stopPropagation(); showAllAttacks()" style="background:#667eea; color:white; border:none; padding:8px 15px; border-radius:8px; cursor:pointer; font-weight:600; margin-bottom:15px;">← Back</button>
+                <button onclick="event.stopPropagation(); goBackModal()" style="background:#667eea; color:white; border:none; padding:8px 15px; border-radius:8px; cursor:pointer; font-weight:600; margin-bottom:15px;">← Back</button>
                 <h3 style="color:#764ba2; margin-bottom:15px;">⚔️ ${attackType}</h3>
                 <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:15px; margin-bottom:20px;">
                     <div style="background:#f8f9fa; padding:15px; border-radius:10px; text-align:center;">
@@ -1014,6 +1024,43 @@
             `;
             document.getElementById('modalContent').innerHTML = content;
             document.getElementById('streamModal').style.display = 'block';
+        }
+
+        async function analyzeLogsManually() {
+            if (!confirm('Analyze logs in AnalyzedLogs directory?')) return;
+            // Show progress modal
+            document.getElementById('modalContent').innerHTML = `
+                <h3 style="color:#764ba2; margin-bottom:15px;">🔍 Analyzing Logs...</h3>
+                <div id="analyzeProgress" style="background:#f8f9fa; padding:15px; border-radius:10px; max-height:400px; overflow-y:auto; font-family:monospace; font-size:12px;">
+                    <div style="color:#667eea;">Starting analysis...</div>
+                </div>
+            `;
+            document.getElementById('streamModal').style.display = 'block';
+            const resp = await fetch('/api/analyze-logs', {method: 'POST'});
+            const data = await resp.json();
+            if (!data.success) {
+                document.getElementById('analyzeProgress').innerHTML += `<div style="color:red;">Error: ${data.message}</div>`;
+                return;
+            }
+            // Connect to SSE progress
+            const evtSource = new EventSource('/api/fetch-progress');
+            evtSource.onmessage = (e) => {
+                const msg = JSON.parse(e.data);
+                if (msg.status === 'keepalive') return;
+                const div = document.getElementById('analyzeProgress');
+                if (!div) { evtSource.close(); return; }
+                const color = msg.status === 'error' ? 'red' : msg.status === 'completed' ? 'green' : '#333';
+                div.innerHTML += `<div style="color:${color};">${msg.message}</div>`;
+                div.scrollTop = div.scrollHeight;
+                if (msg.status === 'completed') {
+                    evtSource.close();
+                    div.innerHTML += `<div style="color:green; font-weight:600; margin-top:10px;">✓ Done! ${msg.total_attacks || 0} attacks found.</div>`;
+                    loadAllData();
+                } else if (msg.status === 'error') {
+                    evtSource.close();
+                }
+            };
+            evtSource.onerror = () => evtSource.close();
         }
 
         async function refreshData() {

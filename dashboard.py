@@ -49,42 +49,32 @@ dashboard_data = {
 progress_queue = queue.Queue()
 
 def load_analysis_data():
-    """Load and analyze logs"""
-    log_dir = os.path.join(os.path.dirname(__file__), 'Log')
-    if os.path.exists(log_dir) and os.listdir(log_dir):
-        print(f"Analyzing logs from: {log_dir}")
-        
-        def progress_cb(current, total, msg):
-            progress_queue.put({'status': 'analyzing', 'message': msg, 'current': current, 'total': total})
-        
-        # Use 20 workers for faster processing (configurable)
-        max_workers = int(os.environ.get('MAX_WORKERS', 20))
-        results, malicious_activities = analyze_attack_logs_with_streams(log_dir, progress_cb, max_workers)
-        dashboard_data['results'] = results
-        dashboard_data['malicious_activities'] = malicious_activities
-        dashboard_data['last_updated'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        
-        # Delete old reports before generating new ones
-        import glob
-        for old_file in glob.glob('log_analysis_*.csv') + glob.glob('malicious_activities_report_*.csv'):
-            try:
-                os.remove(old_file)
-            except:
-                pass
-        
-        # Generate CSV reports
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        summary_file = f"log_analysis_{timestamp}.csv"
-        malicious_file = f"malicious_activities_report_{timestamp}.csv"
-        save_to_csv_with_streams(results, summary_file)
-        save_malicious_report_with_streams(malicious_activities, malicious_file)
-        print(f"Reports saved: {summary_file}, {malicious_file}")
-        
-        print(f"Loaded {len(results)} results and {len(malicious_activities)} malicious activities")
-        return True
-    else:
-        print(f"No logs found in {log_dir}")
+    """Load analysis data from existing CSV reports"""
+    import glob, csv
+    base = os.path.dirname(__file__)
+    summary_files = sorted(glob.glob(os.path.join(base, 'log_analysis_*.csv')), reverse=True)
+    malicious_files = sorted(glob.glob(os.path.join(base, 'malicious_activities_report_*.csv')), reverse=True)
+    if not summary_files or not malicious_files:
+        print("No CSV reports found")
         return False
+    results = []
+    with open(summary_files[0], 'r', encoding='utf-8') as f:
+        for row in csv.DictReader(f):
+            results.append({'stream_name': row['Stream Name'], 'ip': row['Client IP'],
+                            'geo_location': row['Geo Location'], 'attack_count': int(row['Number of Requests']),
+                            'attack_types': row['Attack Types']})
+    malicious = []
+    with open(malicious_files[0], 'r', encoding='utf-8') as f:
+        for row in csv.DictReader(f):
+            malicious.append({'stream_name': row['Stream Name'], 'ip': row['Client IP'],
+                              'attack_type': row['Attack Type'], 'method': row['Method'],
+                              'path': row['Request Path'], 'status': row['Status Code'],
+                              'raw_log': row.get('Raw Log', '')})
+    dashboard_data['results'] = results
+    dashboard_data['malicious_activities'] = malicious
+    dashboard_data['last_updated'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    print(f"Loaded {len(results)} results and {len(malicious)} malicious activities from CSV")
+    return True
 
 def get_top_attacked_streams(limit=20):
     """Get top 20 most attacked log streams"""
@@ -582,12 +572,8 @@ def fetch_logs_api():
             time_data = req_data.get('time_data', {})
             region = req_data.get('region', 'us-west-2')
             max_workers = req_data.get('max_workers', 20)
-            
-            # Set environment variable for this request
             os.environ['MAX_WORKERS'] = str(max_workers)
-            
             progress_queue.put({'status': 'started', 'message': f'Starting log fetch with {max_workers} workers...'})
-            
             if time_range == 'hours':
                 hours = time_data.get('hours', 24)
                 end_time = datetime.now()
@@ -595,28 +581,27 @@ def fetch_logs_api():
             else:
                 start_time = datetime.strptime(time_data['start_date'], '%Y-%m-%dT%H:%M')
                 end_time = datetime.strptime(time_data['end_date'], '%Y-%m-%dT%H:%M')
-            
             from fetch_and_analyze import fetch_cloudwatch_logs_with_progress
-            
+            fetched_dir = os.path.join(os.path.dirname(__file__), 'FetchedLogs')
+            analyzed_dir = os.path.join(os.path.dirname(__file__), 'AnalyzedLogs')
+            os.makedirs(analyzed_dir, exist_ok=True)
             for idx, log_group in enumerate(log_groups):
                 progress_queue.put({'status': 'fetching', 'message': f'Fetching from {log_group}...'})
-                # Only cleanup on first log group (idx == 0)
-                fetch_cloudwatch_logs_with_progress(log_group.strip(), start_time, end_time, region, progress_queue, skip_cleanup=(idx > 0))
-            
-            progress_queue.put({'status': 'analyzing', 'message': 'Starting analysis...', 'current': 0, 'total': 0})
-            load_analysis_data()
-            
-            progress_queue.put({
-                'status': 'completed',
-                'message': 'Fetch completed!',
-                'total_logs': len(dashboard_data['results']),
-                'total_attacks': len(dashboard_data['malicious_activities'])
-            })
+                fetch_cloudwatch_logs_with_progress(log_group.strip(), start_time, end_time, region, skip_cleanup=(idx > 0))
+            # Clean AnalyzedLogs, then copy FetchedLogs -> AnalyzedLogs
+            import shutil
+            os.makedirs(analyzed_dir, exist_ok=True)
+            for f in os.listdir(analyzed_dir):
+                try: os.unlink(os.path.join(analyzed_dir, f))
+                except: pass
+            for f in os.listdir(fetched_dir):
+                shutil.copy2(os.path.join(fetched_dir, f), os.path.join(analyzed_dir, f))
+            progress_queue.put({'status': 'completed', 'message': 'Fetch completed! Click Analyze Logs to analyze.',
+                                'total_logs': len(os.listdir(analyzed_dir)), 'total_attacks': 0})
         except Exception as e:
             progress_queue.put({'status': 'error', 'message': str(e)})
-    
     thread = threading.Thread(target=run_fetch)
-    thread.daemon = True
+    thread.daemon = False
     thread.start()
     
     return jsonify({'success': True, 'message': 'Fetch started'})
@@ -689,10 +674,44 @@ def fetch_s3_logs_api():
             progress_queue.put({'status': 'error', 'message': str(e)})
     
     thread = threading.Thread(target=run_s3_fetch)
-    thread.daemon = True
+    thread.daemon = False
     thread.start()
     
     return jsonify({'success': True, 'message': 'S3 fetch started'})
+
+@app.route('/api/analyze-logs', methods=['POST'])
+def analyze_logs_manual():
+    """Manually trigger analysis of AnalyzedLogs directory"""
+    def run_analyze():
+        try:
+            analyzed_dir = os.path.join(os.path.dirname(__file__), 'AnalyzedLogs')
+            if not os.path.exists(analyzed_dir) or not os.listdir(analyzed_dir):
+                progress_queue.put({'status': 'error', 'message': 'No logs in AnalyzedLogs directory'})
+                return
+            progress_queue.put({'status': 'analyzing', 'message': 'Starting analysis...', 'current': 0, 'total': 0})
+            import glob as _glob
+            for old in _glob.glob(os.path.join(os.path.dirname(__file__), 'log_analysis_*.csv')) + \
+                        _glob.glob(os.path.join(os.path.dirname(__file__), 'malicious_activities_report_*.csv')):
+                try: os.remove(old)
+                except: pass
+            max_workers = int(os.environ.get('MAX_WORKERS', 20))
+            def progress_cb(current, total, msg):
+                progress_queue.put({'status': 'analyzing', 'message': msg, 'current': current, 'total': total})
+            results, malicious = analyze_attack_logs_with_streams(analyzed_dir, progress_cb, max_workers)
+            ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+            base = os.path.dirname(__file__)
+            save_to_csv_with_streams(results, os.path.join(base, f'log_analysis_{ts}.csv'))
+            save_malicious_report_with_streams(malicious, os.path.join(base, f'malicious_activities_report_{ts}.csv'))
+            load_analysis_data()
+            progress_queue.put({'status': 'completed', 'message': 'Analysis completed!',
+                                'total_logs': len(dashboard_data['results']),
+                                'total_attacks': len(dashboard_data['malicious_activities'])})
+        except Exception as e:
+            progress_queue.put({'status': 'error', 'message': str(e)})
+    thread = threading.Thread(target=run_analyze)
+    thread.daemon = False
+    thread.start()
+    return jsonify({'success': True, 'message': 'Analysis started'})
 
 @app.route('/live-monitor')
 @login_required
@@ -1015,6 +1034,6 @@ if __name__ == '__main__':
         print(f"✓ Total Attacks: {len(dashboard_data['malicious_activities'])}")
     else:
         print("Warning: No data loaded. Run fetch_and_analyze.py first to fetch logs.")
-    print(f"\n🌐 Dashboard starting at http://localhost:5000")
+    print(f"\n🌐 Dashboard starting at http://localhost:5002")
     print(f"   Press Ctrl+C to stop\n")
-    app.run(debug=False, host='0.0.0.0', port=5000)
+    app.run(debug=False, host='0.0.0.0', port=5002)
